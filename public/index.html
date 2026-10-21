@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Luz del público</title>
+<style>
+  :root {
+    --bg: #0b0b10; --panel: #16161f; --borde: #2a2a38; --texto: #f2f2f7; --suave: #9a9ab0;
+    --acento: #ff3d7f; --ok: #3ddc84;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .paso { display: none; min-height: 100%; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
+  .paso.activo { display: block; }
+  h1 { font-size: 28px; margin: 8px 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 0 0 16px; }
+  p.sub { color: var(--suave); margin: 0 0 24px; }
+  .lista { display: grid; gap: 12px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .opcion { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 18px 16px;
+    background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; text-align: left; font-size: 18px; font-weight: 600; }
+  .opcion small { color: var(--suave); font-weight: 400; font-size: 14px; }
+  .opcion:active { transform: scale(0.98); }
+  label { display: block; color: var(--suave); font-size: 14px; margin: 16px 0 6px; }
+  select { width: 100%; padding: 14px; font: inherit; font-size: 18px; color: var(--texto); background: var(--panel);
+    border: 1px solid var(--borde); border-radius: 12px; }
+  .principal { width: 100%; margin-top: 28px; padding: 18px; border: 0; border-radius: 14px; font-size: 18px; font-weight: 700;
+    background: var(--acento); color: #fff; }
+  .principal:disabled { opacity: 0.35; }
+  .volver { background: none; border: 0; color: var(--suave); padding: 8px 0; margin-bottom: 8px; }
+  .aviso { margin-top: 28px; padding: 14px; border-radius: 12px; background: #1f1a10; border: 1px solid #4a3a14; color: #e8cf8a; font-size: 14px; }
+  .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: #2b2b3a; color: var(--suave);
+    font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px; }
+  .grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .celda { aspect-ratio: 1.2; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel); color: var(--suave);
+    font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
+  .celda.sel { background: var(--acento); color: #fff; border-color: var(--acento); font-weight: 700; }
+  .etiq-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; color: var(--suave); font-size: 12px; text-align: center; margin-top: 6px; }
+
+  #show { position: fixed; inset: 0; background: #000; display: none; }
+  #show.activo { display: block; }
+  #capa-info { position: absolute; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); padding: 16px;
+    background: rgba(0, 0, 0, 0.78); border-radius: 16px; color: #fff; display: none; backdrop-filter: blur(8px); }
+  #capa-info.visible { display: block; }
+  #capa-info .fila { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; font-size: 14px; }
+  #capa-info button { margin-top: 12px; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #555; background: #222; }
+  .punto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #e55; margin-right: 6px; }
+  .punto.ok { background: var(--ok); }
+  #pista { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 0; right: 0; text-align: center; font-size: 13px;
+    color: rgba(255, 255, 255, 0.7); text-shadow: 0 1px 3px #000; transition: opacity 1s; }
+</style>
+</head>
+<body>
+
+<section class="paso activo" id="paso-sector">
+  <h1>Ilumina el show</h1>
+  <p class="sub">Tu pantalla será parte de las luces. ¿Dónde estás?</p>
+  <div class="lista" id="sectores"></div>
+  <div class="aviso">Sube el brillo al máximo. El show usa cambios de color y destellos suaves (máximo 3 por segundo).
+    Si eres sensible a las luces intermitentes, no lo uses.</div>
+</section>
+
+<section class="paso" id="paso-asiento">
+  <button class="volver" data-volver>← Cambiar sector</button>
+  <h2 id="titulo-asiento"></h2>
+  <label for="fila">Fila</label>
+  <select id="fila"></select>
+  <label for="asiento">Asiento</label>
+  <select id="asiento"></select>
+  <button class="principal" id="listo-asiento">Encender mi pantalla</button>
+</section>
+
+<section class="paso" id="paso-zona">
+  <button class="volver" data-volver>← Cambiar sector</button>
+  <h2 id="titulo-zona"></h2>
+  <p class="sub">Toca la parte de la cancha donde estás.</p>
+  <div class="escenario">Escenario</div>
+  <div class="grilla" id="grilla"></div>
+  <div class="etiq-fila"><span>Izquierda</span><span>Centro</span><span>Derecha</span></div>
+  <button class="principal" id="listo-zona" disabled>Encender mi pantalla</button>
+</section>
+
+<div id="show">
+  <div id="pista">Toca la pantalla para ver opciones</div>
+  <div id="capa-info">
+    <div class="fila"><span>Ubicación</span><strong id="info-ubic"></strong></div>
+    <div class="fila"><span>Conexión</span><span><span class="punto" id="info-punto"></span><span id="info-con">—</span></span></div>
+    <div class="fila"><span>Sincronía</span><span id="info-sync">—</span></div>
+    <button id="cambiar">Cambiar ubicación</button>
+  </div>
+</div>
+
+<script src="/show.js"></script>
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const recinto = await Show.cargarRecinto();
+  document.title = 'Luz del público · ' + recinto.nombre;
+
+  let ubicacion = null;
+  let sector = null;
+
+  function mostrarPaso(id) {
+    document.querySelectorAll('.paso').forEach((p) => p.classList.toggle('activo', p.id === id));
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('[data-volver]').forEach((b) => b.onclick = () => mostrarPaso('paso-sector'));
+
+  // ---- Paso 1: sector ----
+  for (const s of recinto.sectores) {
+    const b = document.createElement('button');
+    b.className = 'opcion';
+    b.innerHTML = `<span>${s.nombre}</span><small>${s.tipo === 'numerada' ? 'Numerada' : 'De pie'}</small>`;
+    b.onclick = () => elegirSector(s);
+    $('sectores').appendChild(b);
+  }
+
+  function elegirSector(s) {
+    sector = s;
+    if (s.tipo === 'numerada') {
+      $('titulo-asiento').textContent = s.nombre;
+      $('fila').innerHTML = s.filas.map((f) => `<option>${f}</option>`).join('');
+      llenarAsientos();
+      mostrarPaso('paso-asiento');
+    } else {
+      $('titulo-zona').textContent = s.nombre;
+      armarGrilla();
+      mostrarPaso('paso-zona');
+    }
+  }
+
+  // ---- Paso 2a: asiento numerado ----
+  function llenarAsientos() {
+    $('asiento').innerHTML = sector.asientosDeFila($('fila').value).map((a) => `<option>${a}</option>`).join('');
+  }
+  $('fila').onchange = llenarAsientos;
+  $('listo-asiento').onclick = () =>
+    iniciar({ sector: sector.id, fila: $('fila').value, asiento: $('asiento').value });
+
+  // ---- Paso 2b: zona general (3x3) ----
+  let celdaSel = null;
+  function armarGrilla() {
+    celdaSel = null;
+    $('listo-zona').disabled = true;
+    $('grilla').innerHTML = '';
+    for (const p of Show.PROFUNDIDADES) for (const l of Show.LADOS) {
+      const c = document.createElement('button');
+      c.className = 'celda';
+      c.textContent = p.nombre;
+      c.onclick = () => {
+        $('grilla').querySelectorAll('.celda').forEach((x) => x.classList.remove('sel'));
+        c.classList.add('sel');
+        celdaSel = { profundidad: p.id, lado: l.id };
+        $('listo-zona').disabled = false;
+      };
+      $('grilla').appendChild(c);
+    }
+  }
+  $('listo-zona').onclick = () => celdaSel && iniciar({ sector: sector.id, ...celdaSel });
+
+  // ---- Show ----
+  const reproductor = Show.crearReproductor();
+  let posicion = null;
+  let conexion = null;
+  let wakeLock = null;
+
+  function describir(u) {
+    const s = recinto.porId[u.sector];
+    if (s.tipo === 'numerada') return `${s.nombre} · Fila ${u.fila} · Asiento ${u.asiento}`;
+    const p = Show.PROFUNDIDADES.find((x) => x.id === u.profundidad).nombre;
+    const l = Show.LADOS.find((x) => x.id === u.lado).nombre;
+    return `${s.nombre} · ${p} · ${l}`;
+  }
+
+  async function pedirWakeLock() {
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) { /* no soportado */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && $('show').classList.contains('activo')) pedirWakeLock();
+  });
+
+  function iniciar(u) {
+    posicion = Show.posicionDe(recinto, u);
+    if (!posicion) return;
+    ubicacion = u;
+    try { localStorage.setItem('ubicacion', JSON.stringify(u)); } catch (e) {}
+    $('info-ubic').textContent = describir(u);
+
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    pedirWakeLock();
+    $('show').classList.add('activo');
+    $('pista').style.opacity = 1;
+    setTimeout(() => $('pista').style.opacity = 0, 3000);
+
+    if (conexion) conexion.close();
+    conexion = Show.conectar({
+      rol: 'publico', zona: u.sector,
+      alEstado: (e) => reproductor.actualizar(e),
+      alConexion: (ok) => {
+        $('info-punto').classList.toggle('ok', ok);
+        $('info-con').textContent = ok ? 'Conectado' : 'Reconectando… (el show sigue)';
+      },
+    });
+  }
+
+  $('show').onclick = (e) => {
+    if (e.target.id === 'cambiar') return;
+    $('capa-info').classList.toggle('visible');
+  };
+  $('cambiar').onclick = () => {
+    $('show').classList.remove('activo');
+    $('capa-info').classList.remove('visible');
+    document.exitFullscreen?.().catch(() => {});
+    wakeLock?.release?.();
+    mostrarPaso('paso-sector');
+  };
+
+  // Reloj: sincroniza al inicio y cada 30 s
+  async function sync() {
+    const r = await Show.sincronizarReloj();
+    if (r) $('info-sync').textContent = `±${Math.round(r.rtt / 2)} ms`;
+  }
+  sync();
+  setInterval(sync, 30000);
+
+  let ultimo = '';
+  function cuadro() {
+    if (posicion) {
+      const t = Show.ahora();
+      const color = Show.css(Show.colorEn(reproductor.capa(posicion.zona, t), posicion, t));
+      if (color !== ultimo) { $('show').style.background = color; ultimo = color; }
+    }
+    requestAnimationFrame(cuadro);
+  }
+  requestAnimationFrame(cuadro);
+
+  // Recordar la última ubicación
+  try {
+    const guardada = JSON.parse(localStorage.getItem('ubicacion') || 'null');
+    if (guardada && Show.posicionDe(recinto, guardada)) {
+      const b = document.createElement('button');
+      b.className = 'principal';
+      b.textContent = 'Seguir en ' + describir(guardada);
+      b.onclick = () => iniciar(guardada);
+      $('sectores').before(b);
+      b.style.margin = '0 0 20px';
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

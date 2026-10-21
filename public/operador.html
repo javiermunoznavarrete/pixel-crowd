@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del operador</title>
+<style>
+  :root { --bg: #0b0b10; --panel: #15151e; --borde: #2a2a38; --texto: #eeeef5; --suave: #8f8fa6; --acento: #ff3d7f; --ok: #3ddc84; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { display: grid; grid-template-columns: 380px minmax(0, 1fr); min-height: 100vh; }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+  aside { border-right: 1px solid var(--borde); padding: 16px; overflow-y: auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .estado { color: var(--suave); font-size: 13px; margin-bottom: 16px; }
+  .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e55; margin-right: 6px; }
+  .punto.ok { background: var(--ok); }
+  section { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--suave); margin: 0 0 10px; }
+  .zonas { display: grid; gap: 6px; }
+  .zona { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #1d1d28; cursor: pointer; }
+  .zona .n { margin-left: auto; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .zona small { color: var(--suave); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .chip { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--borde); background: #1d1d28; }
+  .chip.sel { background: var(--acento); border-color: var(--acento); color: #fff; }
+  .param { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; margin: 8px 0; }
+  .param label { color: var(--suave); }
+  .param output { text-align: right; font-variant-numeric: tabular-nums; color: var(--suave); }
+  .param input[type=text], .param select { grid-column: 2 / 4; width: 100%; padding: 7px; background: #0f0f16; color: var(--texto); border: 1px solid var(--borde); border-radius: 6px; font: inherit; }
+  .param input[type=color] { width: 100%; height: 32px; border: 0; background: none; padding: 0; }
+  .aplicar { width: 100%; padding: 13px; border: 0; border-radius: 10px; background: var(--acento); color: #fff; font-weight: 700; font-size: 15px; }
+  .escenas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .escena { padding: 10px; border-radius: 8px; border: 1px solid var(--borde); background: #1d1d28; text-align: left; }
+  .escena:active, .aplicar:active { transform: scale(0.98); }
+  .ajustes .param { grid-template-columns: 110px 1fr; }
+  .ajustes .param input { grid-column: 2; }
+  #msg { min-height: 18px; font-size: 13px; color: var(--suave); margin-top: 8px; }
+  .vista { display: flex; flex-direction: column; min-height: 100vh; }
+  .vista iframe { flex: 1; width: 100%; border: 0; min-height: 600px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Panel del operador</h1>
+    <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos</div>
+
+    <section>
+      <h2>Zonas</h2>
+      <div class="zonas" id="zonas"></div>
+      <div class="chips" style="margin-top:8px">
+        <button class="chip" id="todas">Todas</button>
+        <button class="chip" id="ninguna">Ninguna</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Efecto</h2>
+      <div class="chips" id="efectos"></div>
+      <div id="params" style="margin-top:8px">
+        <div class="param" data-p="color"><label>Color</label><input type="color" id="color" value="#ff2d55"></div>
+        <div class="param" data-p="color2"><label>Fondo</label><input type="color" id="color2" value="#000000"></div>
+        <div class="param" data-p="velocidad"><label id="vel-label">Velocidad</label><input type="range" id="velocidad" min="0" max="80" value="20"><output id="velocidad-v"></output></div>
+        <div class="param" data-p="bpm"><label>BPM</label><input type="range" id="bpm" min="20" max="200" value="120"><output id="bpm-v"></output></div>
+        <div class="param" data-p="hz"><label>Destellos/s</label><input type="range" id="hz" min="0.5" max="3" step="0.5" value="2"><output id="hz-v"></output></div>
+        <div class="param" data-p="angulo"><label>Dirección</label>
+          <select id="angulo">
+            <option value="90">Escenario → fondo</option>
+            <option value="270">Fondo → escenario</option>
+            <option value="0">Izquierda → derecha</option>
+            <option value="180">Derecha → izquierda</option>
+            <option value="45">Diagonal</option>
+          </select>
+        </div>
+        <div class="param" data-p="texto"><label>Texto</label><input type="text" id="texto" maxlength="60" value="HOLA CHILE ♥"></div>
+      </div>
+      <button class="aplicar" id="aplicar" style="margin-top:8px">Aplicar a zonas seleccionadas</button>
+      <div id="msg"></div>
+    </section>
+
+    <section>
+      <h2>Escenas rápidas (todo el recinto)</h2>
+      <div class="escenas" id="escenas"></div>
+    </section>
+
+    <section class="ajustes">
+      <h2>Ajustes</h2>
+      <div class="param"><label>Adelanto (ms)</label><input type="text" id="adelanto" value="300" inputmode="numeric"></div>
+      <div class="param"><label>Token</label><input type="text" id="token" placeholder="solo si el servidor usa OP_TOKEN"></div>
+    </section>
+  </aside>
+
+  <div class="vista">
+    <iframe src="/simulador?embed" title="Vista previa del estadio"></iframe>
+  </div>
+</div>
+
+<script src="/show.js"></script>
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  const recinto = await Show.cargarRecinto();
+
+  // ---- Zonas ----
+  const seleccion = new Set(recinto.sectores.map((s) => s.id));
+  for (const s of recinto.sectores) {
+    const l = document.createElement('label');
+    l.className = 'zona';
+    l.innerHTML = `<input type="checkbox" value="${s.id}" checked> ${s.nombre} <small>${s.tipo === 'numerada' ? 'numerada' : 'de pie'}</small><span class="n" id="n-${s.id}">0</span>`;
+    l.querySelector('input').onchange = (e) => e.target.checked ? seleccion.add(s.id) : seleccion.delete(s.id);
+    $('zonas').appendChild(l);
+  }
+  const marcarTodas = (v) => $('zonas').querySelectorAll('input').forEach((i) => {
+    i.checked = v; v ? seleccion.add(i.value) : seleccion.delete(i.value);
+  });
+  $('todas').onclick = () => marcarTodas(true);
+  $('ninguna').onclick = () => marcarTodas(false);
+
+  // ---- Efectos y parámetros ----
+  const PARAMS = {
+    solido: ['color'], pulso: ['color', 'color2', 'bpm'], estrobo: ['color', 'color2', 'hz'],
+    ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
+    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'],
+  };
+  const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s' };
+  let efecto = 'solido';
+  for (const [id, nombre] of Object.entries(Show.EFECTOS)) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = nombre;
+    b.dataset.efecto = id;
+    b.onclick = () => elegirEfecto(id);
+    $('efectos').appendChild(b);
+  }
+  function elegirEfecto(id) {
+    efecto = id;
+    $('efectos').querySelectorAll('.chip').forEach((c) => c.classList.toggle('sel', c.dataset.efecto === id));
+    $('params').querySelectorAll('.param').forEach((p) => p.hidden = !PARAMS[id].includes(p.dataset.p));
+    $('vel-label').textContent = 'Velocidad' + (UNIDAD_VEL[id] ? ` (${UNIDAD_VEL[id]})` : '');
+    if (id === 'texto' && $('velocidad').value > 40) $('velocidad').value = 12;
+    refrescarOutputs();
+  }
+  function refrescarOutputs() {
+    for (const id of ['velocidad', 'bpm', 'hz']) $(id + '-v').textContent = $(id).value;
+  }
+  ['velocidad', 'bpm', 'hz'].forEach((id) => $(id).oninput = refrescarOutputs);
+  elegirEfecto('solido');
+
+  function capaActual() {
+    return {
+      efecto, color: $('color').value, color2: $('color2').value, velocidad: +$('velocidad').value,
+      bpm: +$('bpm').value, hz: +$('hz').value, angulo: +$('angulo').value, texto: $('texto').value,
+    };
+  }
+
+  // ---- Envío ----
+  try { $('token').value = localStorage.getItem('op-token') || ''; } catch (e) {}
+  $('token').onchange = () => { try { localStorage.setItem('op-token', $('token').value); } catch (e) {} };
+
+  async function enviar(asignaciones, etiqueta) {
+    try {
+      const r = await fetch('/api/escena', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-token': $('token').value },
+        body: JSON.stringify({ asignaciones, adelantoMs: +$('adelanto').value || 300 }),
+      });
+      const d = await r.json();
+      $('msg').textContent = r.ok ? `✓ ${etiqueta}` : `✗ ${d.error}`;
+    } catch (e) {
+      $('msg').textContent = '✗ Sin conexión con el servidor';
+    }
+  }
+
+  $('aplicar').onclick = () => {
+    if (!seleccion.size) { $('msg').textContent = 'Selecciona al menos una zona'; return; }
+    enviar([{ zonas: [...seleccion], capa: capaActual() }], `${Show.EFECTOS[efecto]} → ${[...seleccion].join(', ')}`);
+  };
+
+  // ---- Escenas rápidas ----
+  const numeradas = recinto.sectores.filter((s) => s.tipo === 'numerada').map((s) => s.id);
+  const generales = recinto.sectores.filter((s) => s.tipo !== 'numerada').map((s) => s.id);
+  const PALETA = ['#ff2d55', '#2d7bff', '#2ddc6a', '#ffcc00', '#b04dff', '#ff8a00'];
+  const ESCENAS = [
+    ['Colores por zona', () => recinto.sectores.map((s, i) => ({
+      zonas: [s.id],
+      capa: s.tipo === 'numerada' ? { efecto: 'solido', color: PALETA[i % PALETA.length] }
+        : { efecto: 'pulso', color: '#ffffff', color2: '#202020', bpm: 120 },
+    }))],
+    ['Ola lateral', () => [{ zonas: 'todas', capa: { efecto: 'ola', color: '#00e5ff', color2: '#05051a', velocidad: 25, angulo: 0 } }]],
+    ['Onda desde escenario', () => [{ zonas: 'todas', capa: { efecto: 'onda', color: '#ffd400', color2: '#1a0a00', velocidad: 22 } }]],
+    ['Texto en galerías', () => [
+      { zonas: numeradas, capa: { efecto: 'texto', color: '#ffffff', color2: '#c4002b', velocidad: 12, texto: $('texto').value } },
+      { zonas: generales, capa: { efecto: 'pulso', color: '#c4002b', color2: '#200006', bpm: 90 } },
+    ]],
+    ['Arcoíris', () => [{ zonas: 'todas', capa: { efecto: 'arcoiris', velocidad: 25, angulo: 0 } }]],
+    ['Latido rojo', () => [{ zonas: 'todas', capa: { efecto: 'pulso', color: '#ff0033', color2: '#000000', bpm: 70 } }]],
+    ['Estrobo blanco', () => [{ zonas: 'todas', capa: { efecto: 'estrobo', color: '#ffffff', color2: '#000000', hz: 2 } }]],
+    ['Apagón', () => [{ zonas: 'todas', capa: { efecto: 'solido', color: '#000000' } }]],
+  ];
+  for (const [nombre, fn] of ESCENAS) {
+    const b = document.createElement('button');
+    b.className = 'escena';
+    b.textContent = nombre;
+    b.onclick = () => enviar(fn(), nombre);
+    $('escenas').appendChild(b);
+  }
+
+  // ---- Conexión y conteos ----
+  Show.conectar({
+    rol: 'operador',
+    alStats: (s) => {
+      $('total').textContent = s.publico;
+      for (const [z, n] of Object.entries(s.porZona)) { const el = $('n-' + z); if (el) el.textContent = n; }
+    },
+    alConexion: (ok) => {
+      $('punto').classList.toggle('ok', ok);
+      $('con').textContent = ok ? 'En vivo' : 'Reconectando…';
+    },
+  });
+})();
+</script>
+</body>
+</html>
