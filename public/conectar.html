@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conéctate al show</title>
+<style>
+  :root { --bg: #0b0b10; --texto: #f2f2f7; --suave: #9a9ab0; --acento: #ff3d7f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--texto);
+    font: 18px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px 16px; text-align: center; }
+  h1 { font-size: clamp(28px, 5vw, 56px); margin: 0; letter-spacing: -0.02em; }
+  p { color: var(--suave); margin: 0; }
+  #qr { background: #fff; padding: 16px; border-radius: 20px; width: min(70vh, 86vw); aspect-ratio: 1; }
+  #qr svg { width: 100%; height: 100%; display: block; }
+  .url { font-size: clamp(20px, 3.4vw, 40px); font-weight: 700; color: var(--acento); word-break: break-all; }
+  .otras { font-size: 14px; }
+  .otras button { font: inherit; color: var(--suave); background: none; border: 1px solid #333; border-radius: 999px; padding: 4px 10px; margin: 4px; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Escanea y enciende tu pantalla</h1>
+  <div id="qr"></div>
+  <div class="url" id="url">—</div>
+  <p>Conéctate a la misma WiFi y abre la cámara del teléfono.</p>
+  <div class="otras" id="otras"></div>
+</main>
+<script src="/vendor/qrcode.js"></script>
+<script>
+(async function () {
+  const { urls } = await (await fetch('/api/red')).json();
+  function mostrar(url) {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
+    document.getElementById('url').textContent = url.replace(/\/$/, '');
+  }
+  if (!urls.length) {
+    document.getElementById('url').textContent = 'Sin red local: conecta el PC a la WiFi';
+    return;
+  }
+  mostrar(urls[0]);
+  // Si el PC tiene varias redes, permite elegir otra IP
+  if (urls.length > 1) {
+    const otras = document.getElementById('otras');
+    otras.append('¿No conecta? Prueba: ');
+    for (const u of urls) {
+      const b = document.createElement('button');
+      b.textContent = u.replace(/^http:\/\/|\/$/g, '');
+      b.onclick = () => mostrar(u);
+      otras.appendChild(b);
+    }
+  }
+})();
+</script>
+</body>
+</html>

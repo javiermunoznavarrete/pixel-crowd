@@ -11,7 +11,7 @@ let proc;
 test.before(async () => {
   proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, OP_TOKEN: 'secreto' } });
   await new Promise((resolve, reject) => {
-    proc.stdout.on('data', (d) => String(d).includes('Público') && resolve());
+    proc.stdout.on('data', (d) => String(d).includes('Ctrl+C') && resolve());
     proc.on('exit', (c) => reject(new Error('el servidor terminó con código ' + c)));
   });
 });

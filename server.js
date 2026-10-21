@@ -90,7 +90,23 @@ setInterval(() => {
 
 // ---------- HTTP ----------
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
-const RUTAS = { '/': 'index.html', '/operador': 'operador.html', '/simulador': 'simulador.html' };
+const RUTAS = { '/': 'index.html', '/operador': 'operador.html', '/simulador': 'simulador.html', '/conectar': 'conectar.html' };
+
+// IPs de la red local, con WiFi/Ethernet primero. Se descartan adaptadores virtuales y VPN,
+// que los teléfonos de la misma WiFi no pueden alcanzar.
+const VIRTUALES = /vEthernet|VMware|VirtualBox|WSL|Hyper-V|Tailscale|NordLynx|ZeroTier|Hamachi|docker|vboxnet|utun|tun\d|wg\d/i;
+function ipsLocales() {
+  const lista = [];
+  for (const [nombre, ifaces] of Object.entries(os.networkInterfaces())) {
+    if (VIRTUALES.test(nombre)) continue;
+    for (const i of ifaces || []) {
+      if (i.family !== 'IPv4' || i.internal || i.address.startsWith('169.254.')) continue;
+      lista.push({ nombre, ip: i.address, prioridad: /wi-?fi|wlan|wireless|en0/i.test(nombre) ? 0 : /ethernet|eth|en\d/i.test(nombre) ? 1 : 2 });
+    }
+  }
+  return lista.sort((a, b) => a.prioridad - b.prioridad);
+}
+const urlPublico = (ip) => `http://${ip}${PORT === 80 ? '' : ':' + PORT}/`;
 
 function json(res, codigo, datos) {
   res.writeHead(codigo, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -160,17 +176,41 @@ const servidor = http.createServer((req, res) => {
   if (p === '/api/recinto') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' }); return res.end(recintoJson); }
   if (p === '/api/events') return eventos(req, res, url);
   if (p === '/api/estado') return json(res, 200, estado);
+  if (p === '/api/red') {
+    const urls = process.env.URL_PUBLICO ? [process.env.URL_PUBLICO] : ipsLocales().map((i) => urlPublico(i.ip));
+    return json(res, 200, { urls });
+  }
   if (p === '/api/escena' && req.method === 'POST') return aplicarEscena(req, res);
   if (RUTAS[p]) return estatico(res, RUTAS[p]);
   return estatico(res, p.slice(1));
 });
 
-servidor.listen(PORT, () => {
-  const ips = Object.values(os.networkInterfaces()).flat()
-    .filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
-  console.log(`Pantallas de concierto — ${recinto.nombre}`);
-  console.log(`  Público:    http://localhost:${PORT}/`);
-  console.log(`  Operador:   http://localhost:${PORT}/operador${OP_TOKEN ? '  (requiere OP_TOKEN)' : ''}`);
-  console.log(`  Simulador:  http://localhost:${PORT}/simulador`);
-  for (const ip of ips) console.log(`  Desde teléfonos en la misma red: http://${ip}:${PORT}/`);
+servidor.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') console.error(`\nEl puerto ${PORT} está ocupado. ¿Ya hay un servidor abierto? Ciérralo o usa otro puerto: set PORT=3001`);
+  else console.error(err);
+  process.exit(1);
 });
+
+servidor.listen(PORT, '0.0.0.0', () => {
+  const ips = ipsLocales();
+  console.log(`\nPantallas de concierto — ${recinto.nombre}\n`);
+  console.log(`  Operador (en este PC):   http://localhost:${PORT}/operador${OP_TOKEN ? '  (requiere OP_TOKEN)' : ''}`);
+  console.log(`  QR para el público:      http://localhost:${PORT}/conectar`);
+  console.log(`  Simulador:               http://localhost:${PORT}/simulador\n`);
+  if (ips.length) {
+    console.log(`  >> Teléfonos (misma WiFi): ${urlPublico(ips[0].ip)}   [${ips[0].nombre}]`);
+    for (const i of ips.slice(1)) console.log(`     o también:             ${urlPublico(i.ip)}   [${i.nombre}]`);
+  } else {
+    console.log('  No se detectó una red local. Conecta el PC a la WiFi y reinicia.');
+  }
+  console.log('\n  Ctrl+C para detener.\n');
+  if (process.env.ABRIR_NAVEGADOR) abrirNavegador([`http://localhost:${PORT}/conectar`, `http://localhost:${PORT}/operador`]);
+});
+
+function abrirNavegador(urls) {
+  const { exec } = require('child_process');
+  for (const u of urls) {
+    const cmd = process.platform === 'win32' ? `start "" "${u}"` : process.platform === 'darwin' ? `open "${u}"` : `xdg-open "${u}"`;
+    exec(cmd, () => {});
+  }
+}

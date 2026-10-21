@@ -94,6 +94,7 @@
   </div>
 </div>
 
+<script src="/vendor/NoSleep.min.js"></script>
 <script src="/show.js"></script>
 <script>
 (async function () {
@@ -166,7 +167,9 @@
   const reproductor = Show.crearReproductor();
   let posicion = null;
   let conexion = null;
-  let wakeLock = null;
+  // NoSleep usa la Wake Lock API si existe (solo con HTTPS) y si no un video invisible en bucle,
+  // así la pantalla no se apaga aunque la red local sirva por http://192.168…
+  const noSleep = new NoSleep();
 
   function describir(u) {
     const s = recinto.porId[u.sector];
@@ -176,13 +179,6 @@
     return `${s.nombre} · ${p} · ${l}`;
   }
 
-  async function pedirWakeLock() {
-    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) { /* no soportado */ }
-  }
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && $('show').classList.contains('activo')) pedirWakeLock();
-  });
-
   function iniciar(u) {
     posicion = Show.posicionDe(recinto, u);
     if (!posicion) return;
@@ -191,7 +187,7 @@
     $('info-ubic').textContent = describir(u);
 
     document.documentElement.requestFullscreen?.().catch(() => {});
-    pedirWakeLock();
+    noSleep.enable().catch(() => {}); // debe llamarse dentro del toque del usuario
     $('show').classList.add('activo');
     $('pista').style.opacity = 1;
     setTimeout(() => $('pista').style.opacity = 0, 3000);
@@ -215,7 +211,7 @@
     $('show').classList.remove('activo');
     $('capa-info').classList.remove('visible');
     document.exitFullscreen?.().catch(() => {});
-    wakeLock?.release?.();
+    noSleep.disable();
     mostrarPaso('paso-sector');
   };
 

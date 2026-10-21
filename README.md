@@ -5,7 +5,23 @@ Coordina las pantallas de los teléfonos del público, como los lightsticks, per
 - **Sectores numerados (galerías):** la persona elige fila y asiento. Con el mapa de numeración, cada asiento es un píxel con coordenadas exactas, lo que permite mosaicos de texto y olas precisas.
 - **Sectores generales (cancha):** la persona toca en una cuadrícula de 3×3 dónde está (adelante/medio/atrás × izquierda/centro/derecha).
 
-## Uso
+## Probar en red local (WiFi de la casa)
+
+1. Conecta el PC y los teléfonos a **la misma WiFi**. Si tienes una VPN activa (NordVPN, etc.) y los teléfonos no conectan, desactívala o activa la opción de LAN.
+2. Haz doble clic en **`iniciar.cmd`**. Se abren dos pestañas:
+   - **`/conectar`**: un QR grande con la dirección de red, para mostrarlo en pantalla o proyectarlo.
+   - **`/operador`**: el panel de control con la vista previa.
+3. En cada teléfono, escanea el QR con la cámara, elige tu ubicación y toca **"Encender mi pantalla"**.
+4. Desde el panel, prueba las **escenas rápidas** ("Colores por zona", "Ola lateral", "Texto en galerías"…). El panel muestra cuántos teléfonos hay conectados por zona.
+
+Tips para la prueba:
+- Reparte los teléfonos en distintas zonas (uno en Galería 1, otro en Cancha, etc.) para ver los colores por zona.
+- Para ver una ola o un texto con pocos teléfonos, elige asientos vecinos de la misma galería (fila A, asientos 40, 41, 42…) y ponlos en fila sobre la mesa.
+- Sube el brillo al máximo. La pantalla no se apaga sola: usa Wake Lock o, por HTTP, un video invisible (NoSleep.js).
+- Si el puerto 3000 está ocupado: `set PORT=3001` y vuelve a ejecutar.
+- Si Windows pregunta por el firewall al iniciar, acepta el acceso de Node.js.
+
+## Uso manual
 
 ```bash
 npm start            # o: node server.js   (Node 18+; sin dependencias)
@@ -18,7 +34,9 @@ npm start            # o: node server.js   (Node 18+; sin dependencias)
 | Simulador del estadio | `http://localhost:3000/simulador` |
 
 Para probar con teléfonos reales, deben estar en la misma red WiFi que el PC. El servidor imprime la IP al arrancar.
-Variables: `PORT` (por defecto 3000) y `OP_TOKEN` (si se define, el panel debe enviar ese token).
+Variables: `PORT` (por defecto 3000), `OP_TOKEN` (si se define, el panel debe enviar ese token), `URL_PUBLICO` (fuerza la URL del QR) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
+
+Librerías incluidas en `public/vendor/` (se sirven desde el PC, funcionan sin internet): NoSleep.js 0.12.0 y qrcode-generator 1.4.4, ambas con licencia MIT.
 
 ```bash
 npm test             # tests del motor de efectos y del servidor
