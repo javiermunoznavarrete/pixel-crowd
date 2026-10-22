@@ -84,7 +84,7 @@ Cada evento es una carpeta `data/eventos/<evento>/` con un `evento.json`. Cada u
 - **`"oculto": true`** lo saca de la lista pública, pero su dirección sigue funcionando (sirve para ensayos).
 - **`zonas`** en los presets: `todas`, `numeradas` (sectores con asiento), `generales` (cancha y zonas sin numerar) o una lista de IDs.
 
-Eventos actuales: `babymetal-2026` (Movistar Arena, 3 dic 2026) y `ensayo-caupolican` (oculto, para probar el Teatro Caupolicán).
+Eventos actuales: `babymetal-2026` (BABYMETAL, Movistar Arena) y `atarashii-gakko-2026` (ATARASHII GAKKO!, Teatro Caupolicán), ambos el jueves 3 de diciembre de 2026, más `demo` (oculto, con el estadio de prueba).
 
 **BABYMETAL · 3 dic 2026, Movistar Arena** (`data/eventos/babymetal-2026/evento.json`): presets en el orden del setlist de la gira 2026, con los colores de la banda (rojo, negro y blanco):
 - **Bandera de Chile** (destacada): **una sola bandera gigante con todo el público**, vista desde el escenario. Cada persona se proyecta según cómo la ve la banda (ángulo horizontal y altura estimada por nivel y fila) y la bandera se reparte por cantidad de gente: la mitad que se ve más arriba forma la franja blanca y el cantón, y la de abajo la roja. El simulador tiene una "Vista desde el escenario" para revisarla.

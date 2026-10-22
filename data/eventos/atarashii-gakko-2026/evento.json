@@ -1,12 +1,12 @@
 {
-  "titulo": "Ensayo Teatro Caupolicán",
-  "pestana": "Ensayo Caupolicán",
+  "titulo": "ATARASHII GAKKO!",
+  "pestana": "ATARASHII GAKKO! · 3 dic",
   "lugar": "Teatro Caupolicán",
-  "fecha": "fecha por definir",
+  "fecha": "jueves 3 de diciembre",
+  "fechaISO": "2026-12-03",
   "recinto": "teatro-caupolican",
-  "oculto": true,
-  "subtitulo": "Evento de prueba del mapa del Teatro Caupolicán",
-  "nota": "Evento oculto: no aparece en la lista pública. Sirve para probar el mapa del teatro.",
+  "subtitulo": "Jueves 3 dic 2026 · Teatro Caupolicán",
+  "nota": "Primer show en Chile y primera fecha de su gira latinoamericana 2026. La misma noche que BABYMETAL en el Movistar Arena.",
   "presets": [
     {
       "nombre": "Bandera de Chile",
