@@ -56,7 +56,7 @@ Cada recinto vive en `data/recintos/<nombre>/`. El servidor usa `RECINTO` (por d
 
 | Recinto | Contenido |
 |---|---|
-| `movistar-arena` | Movistar/Santander Arena para Babymetal: cancha de pie, 12 sectores de Platea Baja (B1–B12), 14 de Platea Alta (A1–A14) con **7.867 asientos**, y tribuna como zona general. |
+| `movistar-arena` | Movistar/Santander Arena para Babymetal: cancha de pie, 12 sectores de Platea Baja (B1–B12), 14 de Platea Alta (A1–A14) y Tribuna 1–2 (T1–T2), con **8.027 asientos**. |
 | `demo` | Estadio de ejemplo (3 galerías, 3.240 asientos). Lo usan los tests. `set RECINTO=demo` para probarlo. |
 
 Archivos:
@@ -68,8 +68,8 @@ Archivos:
 
 Limitaciones conocidas:
 - **839 asientos (10,7 %) tienen número deducido**: eran filas completamente vendidas en el evento de referencia y el sitio no muestra sus números. Se toman de la fila vecina, porque la numeración avanza por columna en el 94 % de los casos. Hay que verificarlos con entradas reales.
-- **Tribuna** no abre grilla en el selector, así que es una zona general aproximada.
-- Los nombres B1–B12 / A1–A14 son propios (en sentido horario desde el escenario). En la web del público cada persona **toca su sector en el mapa**, así no necesita saber el nombre oficial.
+- **Tribuna** se sacó de otro evento (DGM179), donde sí está habilitada: 2 filas de 40 asientos por sector. Tribuna 1 numera 1–40 y Tribuna 2 41–80, deducido de los pocos asientos libres. La fila A de Tribuna 1 no tenía ningún número visible y se asumió igual que la B.
+- Los nombres B1–B12 / A1–A14 son propios (en sentido horario desde el escenario); Tribuna 1 y 2 son los nombres oficiales. En la web del público cada persona **toca su sector en el mapa**, así no necesita saber el nombre oficial.
 
 `npm run recinto-demo` regenera el estadio de ejemplo.
 

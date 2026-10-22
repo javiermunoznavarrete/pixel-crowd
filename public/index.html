@@ -65,7 +65,7 @@
   <h1>Ilumina el show</h1>
   <p class="sub">Tu pantalla será parte de las luces. Toca en el mapa el sector donde estás.</p>
   <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
-  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta</p>
+  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta &nbsp; <span style="color:#c58cff">■</span> T = Tribuna</p>
   <details class="mas">
     <summary>O elige tu sector de una lista</summary>
     <div class="lista" id="sectores"></div>
@@ -132,7 +132,7 @@
   }
 
   // ---- Mapa tocable ----
-  const COLORES = { general: '#ff3d7f', 'Platea Baja': '#2ec6ef', 'Platea Alta': '#6f7cff' };
+  const COLORES = { general: '#ff3d7f', 'Platea Baja': '#2ec6ef', 'Platea Alta': '#6f7cff', Tribuna: '#c58cff' };
   const mapa = $('mapa');
   const ctxMapa = mapa.getContext('2d');
   const esc = recinto.escenario;
@@ -155,7 +155,7 @@
   // "Platea Baja 7" → "B7", "Platea Alta 3" → "A3" (los números se repiten entre niveles)
   const etiquetaCorta = (s) => {
     const n = (s.nombre.match(/\d+$/) || [''])[0];
-    return /baja/i.test(s.nombre) ? 'B' + n : /alta/i.test(s.nombre) ? 'A' + n : s.nombre;
+    return /baja/i.test(s.nombre) ? 'B' + n : /alta/i.test(s.nombre) ? 'A' + n : /tribuna/i.test(s.nombre) ? 'T' + n : s.nombre;
   };
 
   function dibujarMapa() {
