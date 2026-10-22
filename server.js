@@ -11,7 +11,9 @@ const os = require('os');
 const PORT = Number(process.env.PORT) || 3000;
 const OP_TOKEN = process.env.OP_TOKEN || ''; // si se define, el panel debe enviarlo
 const PUBLIC = path.join(__dirname, 'public');
-const DATA = path.join(__dirname, 'data');
+// Recinto a usar: carpeta dentro de data/recintos/ (movistar-arena por defecto, demo para pruebas)
+const RECINTO = process.env.RECINTO || 'movistar-arena';
+const DATA = path.join(__dirname, 'data', 'recintos', RECINTO);
 
 // ---------- Recinto ----------
 function cargarRecinto() {
@@ -22,10 +24,13 @@ function cargarRecinto() {
   const lineas = fs.readFileSync(path.join(DATA, 'asientos.csv'), 'utf8').split(/\r?\n/);
   lineas.slice(1).forEach((linea, i) => {
     if (!linea.trim()) return;
-    const [sector, fila, asiento, x, y] = linea.split(',').map((v) => v.trim());
+    // col (opcional): columna del asiento en la grilla del sector, vista desde la cancha (para mosaicos)
+    const [sector, fila, asiento, x, y, col] = linea.split(',').map((v) => v.trim());
     const s = porId[sector];
     if (!s || s.tipo !== 'numerada') throw new Error(`asientos.csv línea ${i + 2}: sector "${sector}" no existe o no es numerado`);
-    s.asientos.push([fila, asiento, Number(x), Number(y)]);
+    const a = [fila, asiento, Number(x), Number(y)];
+    if (col !== undefined && col !== '') a.push(Number(col));
+    s.asientos.push(a);
   });
   return recinto;
 }

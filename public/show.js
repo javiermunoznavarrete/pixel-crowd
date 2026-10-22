@@ -35,19 +35,24 @@
     for (const s of recinto.sectores) {
       if (s.tipo === 'numerada') {
         const porFila = new Map();
-        for (const [fila, asiento, x, y] of s.asientos) {
+        for (const [fila, asiento, x, y, colMapa] of s.asientos) {
           if (!porFila.has(fila)) porFila.set(fila, []);
-          porFila.get(fila).push({ fila, asiento, x, y });
+          porFila.get(fila).push({ fila, asiento, x, y, colMapa });
         }
         s.filas = [...porFila.keys()];
         s.rows = s.filas.length;
-        s.cols = Math.max(...[...porFila.values()].map((a) => a.length));
+        // Si el mapa trae la columna real de cada asiento (con pasillos), se usa tal cual;
+        // si no, se arma la grilla ordenando por número de asiento y centrando cada fila.
+        const conColumna = s.asientos.length && s.asientos.every((a) => a[4] !== undefined);
+        s.cols = conColumna
+          ? Math.max(...s.asientos.map((a) => a[4])) + 1
+          : Math.max(...[...porFila.values()].map((a) => a.length));
         s.mapa = new Map();
         s.filas.forEach((fila, row) => {
           const lista = porFila.get(fila).sort((a, b) => cmpAsiento(a.asiento, b.asiento));
           const margen = Math.floor((s.cols - lista.length) / 2);
           lista.forEach((a, i) => {
-            const col = margen + i;
+            const col = conColumna ? a.colMapa : margen + i;
             a.grid = { row, col: s.invertirTexto ? s.cols - 1 - col : col, rows: s.rows, cols: s.cols };
             s.mapa.set(clave(fila, a.asiento), a);
           });
@@ -207,7 +212,8 @@
     if (!grid) return false;
     const cols = columnasTexto(capa.texto || '');
     if (!cols.length) return false;
-    const escala = Math.max(1, Math.floor(grid.rows / 8));
+    // Letras de 7 filas; se agrandan solo si el sector es alto y ancho (cabe ≥ 5 letras de ancho)
+    const escala = Math.max(1, Math.floor(Math.min(grid.rows / 8, grid.cols / 30)));
     const altoTexto = 7 * escala;
     const filaDesdeArriba = grid.rows - 1 - grid.row; // la fila A queda abajo
     const ty = Math.floor((filaDesdeArriba - Math.floor((grid.rows - altoTexto) / 2)) / escala);

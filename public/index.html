@@ -32,6 +32,11 @@
     background: var(--acento); color: #fff; }
   .principal:disabled { opacity: 0.35; }
   .volver { background: none; border: 0; color: var(--suave); padding: 8px 0; margin-bottom: 8px; }
+  #mapa { display: block; width: 100%; border-radius: 14px; background: #101018; touch-action: manipulation; cursor: pointer; }
+  .leyenda { color: var(--suave); font-size: 13px; margin: 8px 0 0; text-align: center; }
+  details.mas { margin-top: 14px; }
+  details.mas summary { color: var(--suave); padding: 10px 0; cursor: pointer; }
+  details.mas .lista { margin-top: 8px; }
   .aviso { margin-top: 28px; padding: 14px; border-radius: 12px; background: #1f1a10; border: 1px solid #4a3a14; color: #e8cf8a; font-size: 14px; }
   .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: #2b2b3a; color: var(--suave);
     font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px; }
@@ -58,8 +63,13 @@
 
 <section class="paso activo" id="paso-sector">
   <h1>Ilumina el show</h1>
-  <p class="sub">Tu pantalla será parte de las luces. ¿Dónde estás?</p>
-  <div class="lista" id="sectores"></div>
+  <p class="sub">Tu pantalla será parte de las luces. Toca en el mapa el sector donde estás.</p>
+  <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
+  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta</p>
+  <details class="mas">
+    <summary>O elige tu sector de una lista</summary>
+    <div class="lista" id="sectores"></div>
+  </details>
   <div class="aviso">Sube el brillo al máximo. El show usa cambios de color y destellos suaves (máximo 3 por segundo).
     Si eres sensible a las luces intermitentes, no lo uses.</div>
 </section>
@@ -108,6 +118,7 @@
   function mostrarPaso(id) {
     document.querySelectorAll('.paso').forEach((p) => p.classList.toggle('activo', p.id === id));
     window.scrollTo(0, 0);
+    if (id === 'paso-sector') { sectorResaltado = null; dibujarMapa(); }
   }
   document.querySelectorAll('[data-volver]').forEach((b) => b.onclick = () => mostrarPaso('paso-sector'));
 
@@ -119,6 +130,101 @@
     b.onclick = () => elegirSector(s);
     $('sectores').appendChild(b);
   }
+
+  // ---- Mapa tocable ----
+  const COLORES = { general: '#ff3d7f', 'Platea Baja': '#2ec6ef', 'Platea Alta': '#6f7cff' };
+  const mapa = $('mapa');
+  const ctxMapa = mapa.getContext('2d');
+  const esc = recinto.escenario;
+  const puntosSector = new Map(); // sector → [{x,y}]
+  let minX = esc.x1, maxX = esc.x2, minY = esc.y1, maxY = esc.y2;
+  for (const s of recinto.sectores) {
+    const pts = s.tipo === 'numerada' ? [...s.mapa.values()].map((a) => ({ x: a.x, y: a.y })) : [];
+    puntosSector.set(s, pts);
+    for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+    if (s.rect) { minX = Math.min(minX, s.rect.x1); maxX = Math.max(maxX, s.rect.x2); minY = Math.min(minY, s.rect.y1); maxY = Math.max(maxY, s.rect.y2); }
+  }
+  minX -= 2; maxX += 2; minY -= 2; maxY += 2;
+  let escMapa = 1;
+  let sectorResaltado = null;
+  const centro = (s) => {
+    if (s.rect) return { x: (s.rect.x1 + s.rect.x2) / 2, y: (s.rect.y1 + s.rect.y2) / 2 };
+    const pts = puntosSector.get(s);
+    return { x: pts.reduce((a, p) => a + p.x, 0) / pts.length, y: pts.reduce((a, p) => a + p.y, 0) / pts.length };
+  };
+  // "Platea Baja 7" → "B7", "Platea Alta 3" → "A3" (los números se repiten entre niveles)
+  const etiquetaCorta = (s) => {
+    const n = (s.nombre.match(/\d+$/) || [''])[0];
+    return /baja/i.test(s.nombre) ? 'B' + n : /alta/i.test(s.nombre) ? 'A' + n : s.nombre;
+  };
+
+  function dibujarMapa() {
+    const dpr = window.devicePixelRatio || 1;
+    const ancho = mapa.clientWidth;
+    escMapa = ancho / (maxX - minX);
+    mapa.style.height = (maxY - minY) * escMapa + 'px';
+    mapa.width = ancho * dpr;
+    mapa.height = (maxY - minY) * escMapa * dpr;
+    ctxMapa.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const X = (x) => (x - minX) * escMapa, Y = (y) => (y - minY) * escMapa;
+
+    ctxMapa.fillStyle = '#2b2b3a';
+    ctxMapa.fillRect(X(esc.x1), Y(esc.y1), (esc.x2 - esc.x1) * escMapa, (esc.y2 - esc.y1) * escMapa);
+    ctxMapa.fillStyle = '#9a9ab0';
+    ctxMapa.font = '600 11px system-ui';
+    ctxMapa.textAlign = 'center';
+    ctxMapa.textBaseline = 'middle';
+    ctxMapa.fillText('ESCENARIO', X((esc.x1 + esc.x2) / 2), Y((esc.y1 + esc.y2) / 2));
+
+    for (const s of recinto.sectores) {
+      const activo = s === sectorResaltado;
+      const color = activo ? '#ffffff' : (s.tipo === 'general' ? COLORES.general : (COLORES[s.nivel] || '#6f7cff'));
+      ctxMapa.fillStyle = color;
+      if (s.rect) {
+        ctxMapa.globalAlpha = activo ? 0.9 : 0.35;
+        ctxMapa.fillRect(X(s.rect.x1), Y(s.rect.y1), (s.rect.x2 - s.rect.x1) * escMapa, (s.rect.y2 - s.rect.y1) * escMapa);
+        ctxMapa.globalAlpha = 1;
+      } else {
+        const t = Math.max(1, 0.45 * escMapa);
+        ctxMapa.globalAlpha = activo ? 1 : 0.7;
+        for (const p of puntosSector.get(s)) ctxMapa.fillRect(X(p.x) - t / 2, Y(p.y) - t / 2, t, t);
+        ctxMapa.globalAlpha = 1;
+      }
+    }
+    // Etiquetas encima de todo
+    for (const s of recinto.sectores) {
+      const c = centro(s);
+      ctxMapa.font = s.rect ? '700 13px system-ui' : '700 12px system-ui';
+      ctxMapa.lineWidth = 3;
+      ctxMapa.strokeStyle = 'rgba(0,0,0,0.75)';
+      const txt = s.rect ? s.nombre.toUpperCase() : etiquetaCorta(s);
+      ctxMapa.strokeText(txt, X(c.x), Y(c.y));
+      ctxMapa.fillStyle = '#fff';
+      ctxMapa.fillText(txt, X(c.x), Y(c.y));
+    }
+  }
+
+  // Sector bajo el toque: primero el asiento más cercano (hasta 3 m); si no, la zona general que lo contiene
+  function sectorEn(x, y) {
+    let mejor = null, dMin = 9;
+    for (const [s, pts] of puntosSector) for (const p of pts) {
+      const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (d < dMin) { dMin = d; mejor = s; }
+    }
+    if (mejor) return mejor;
+    return recinto.sectores.find((s) => s.rect && x >= s.rect.x1 && x <= s.rect.x2 && y >= s.rect.y1 && y <= s.rect.y2) || null;
+  }
+
+  mapa.addEventListener('click', (e) => {
+    const r = mapa.getBoundingClientRect();
+    const s = sectorEn((e.clientX - r.left) / escMapa + minX, (e.clientY - r.top) / escMapa + minY);
+    if (!s) return;
+    sectorResaltado = s;
+    dibujarMapa();
+    setTimeout(() => elegirSector(s), 250); // deja ver el sector resaltado antes de avanzar
+  });
+  window.addEventListener('resize', dibujarMapa);
+  dibujarMapa();
 
   function elegirSector(s) {
     sector = s;
@@ -242,7 +348,7 @@
       b.className = 'principal';
       b.textContent = 'Seguir en ' + describir(guardada);
       b.onclick = () => iniciar(guardada);
-      $('sectores').before(b);
+      mapa.before(b);
       b.style.margin = '0 0 20px';
     }
   } catch (e) {}

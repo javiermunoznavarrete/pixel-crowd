@@ -1,4 +1,4 @@
-// Genera un recinto de demostración: data/recinto.json + data/asientos.csv.
+// Genera un recinto de demostración en data/recintos/demo/ (recinto.json + asientos.csv).
 // En un recinto real, asientos.csv se reemplaza por el mapa de numeración digitalizado
 // (sector,fila,asiento,x,y en metros, con el escenario en y=0 y x=0 al centro).
 const fs = require('fs');
@@ -35,7 +35,7 @@ FILAS.forEach((fila, r) => {
   }
 });
 
-const dir = path.join(__dirname, '..', 'data');
+const dir = path.join(__dirname, '..', 'data', 'recintos', 'demo');
 fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, 'recinto.json'), JSON.stringify(recinto, null, 2) + '\n');
 fs.writeFileSync(path.join(dir, 'asientos.csv'), filas.join('\n') + '\n');

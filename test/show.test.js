@@ -12,10 +12,10 @@ function cargarShow() {
 }
 
 function recintoDemo(Show) {
-  const recinto = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'recinto.json'), 'utf8'));
+  const recinto = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'recintos', 'demo', 'recinto.json'), 'utf8'));
   const porId = Object.fromEntries(recinto.sectores.map((s) => [s.id, s]));
   for (const s of recinto.sectores) if (s.tipo === 'numerada') s.asientos = [];
-  fs.readFileSync(path.join(__dirname, '..', 'data', 'asientos.csv'), 'utf8').trim().split('\n').slice(1).forEach((l) => {
+  fs.readFileSync(path.join(__dirname, '..', 'data', 'recintos', 'demo', 'asientos.csv'), 'utf8').trim().split('\n').slice(1).forEach((l) => {
     const [sec, fila, asiento, x, y] = l.split(',');
     porId[sec].asientos.push([fila, asiento, +x, +y]);
   });
