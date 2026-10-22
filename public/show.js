@@ -321,8 +321,21 @@
           u = 1 - pos.rel.u;
           w = 1 - pos.rel.v;
         } else return BLANCO;
-        // Ondeo suave: una sombra que recorre la bandera (velocidad 0 = quieta)
-        const k = v > 0 ? 0.8 + 0.2 * Math.sin(2 * Math.PI * (u * 1.3 - el * v / 40)) : 1;
+        // Flameo como tela al viento (velocidad = fuerza del viento; 0 = quieta). Las ondas nacen en el asta
+        // (u = 0, lado del cantón) y viajan hacia la punta; el asta no se mueve y la amplitud crece hacia la punta.
+        let k = 1;
+        if (v > 0) {
+          const viento = v / 20; // 20 = brisa normal
+          const fase = 2 * Math.PI * (u * 1.6 - el * 0.6 * viento) + w * 1.8; // pliegues algo diagonales
+          const amp = 0.07 * Math.min(1.5, viento) * u;
+          const w2 = w + amp * Math.sin(fase);
+          const u2 = u - 0.03 * u * (1 - Math.cos(fase)); // la punta se recoge en cada pliegue
+          // Fuera de la tela (bordes que flamean): apagado
+          if (w2 < 0 || w2 > 1 || u2 > 1) return [0, 0, 0];
+          u = u2;
+          w = w2;
+          k = 0.6 + 0.4 * (0.5 + 0.5 * Math.cos(fase - 0.9)); // luz en las crestas, sombra en los valles
+        }
         const [r, g, b] = colorBandera(u, w, estrella);
         return [r * k, g * k, b * k];
       }

@@ -18,6 +18,11 @@
         asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'completa', velocidad: 20 } }],
       },
       {
+        nombre: 'Bandera flameando 🌬️',
+        descripcion: 'La bandera grande con viento fuerte: pliegues marcados y bordes que flamean',
+        asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'completa', velocidad: 40 } }],
+      },
+      {
         nombre: 'Banderas por sector 🇨🇱',
         descripcion: 'Una bandera en cada galería (vista desde la cancha) y otra en la cancha',
         asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'sector', velocidad: 20 } }],

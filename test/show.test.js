@@ -141,6 +141,23 @@ test('bandera completa: arriba la gente más alta y lejana, abajo la cancha cerc
   assert.ok(arriba.vista.v < 0.25, `v=${arriba.vista.v}`);
 });
 
+test('bandera flameando: el asta queda fija, la tela ondula y nadie parpadea más de 3 veces por segundo', () => {
+  const capa = { id: 1, efecto: 'bandera', modo: 'sector', velocidad: 40, inicio: 0 };
+  const s = recinto.porId.G2;
+  const enCol = (col, rowDesdeArriba) => [...s.mapa.values()].find((a) => a.grid.col === col && a.grid.rows - 1 - a.grid.row === rowDesdeArriba);
+  const asta = enCol(0, 9), punta = enCol(s.cols - 1, 0);
+  const tono = (a, t) => [...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid }, t)].map(Math.round);
+  // Junto al asta el color base no cambia (siempre rojo, solo varía la luz)
+  for (let t = 0; t < 3000; t += 100) { const [r, g, b] = tono(asta, t); assert.ok(r > g && r > b, `asta ${r},${g},${b}`); }
+  // En la punta superior la tela flamea: a veces se sale (apagado) y a veces vuelve
+  const apagados = Array.from({ length: 60 }, (_, i) => tono(punta, i * 50)).filter((c) => c.join(',') === '0,0,0').length;
+  assert.ok(apagados > 0 && apagados < 60, `apagados ${apagados}/60`);
+  // Cambios de encendido/apagado en la punta: lentos (≤ 3 por segundo)
+  let cambios = 0, prev = null;
+  for (let t = 0; t <= 1000; t += 10) { const off = tono(punta, t).join(',') === '0,0,0'; if (prev !== null && off !== prev) cambios++; prev = off; }
+  assert.ok(cambios <= 6, `cambios ${cambios}`);
+});
+
 test('el glifo de zorro se dibuja en los mosaicos', () => {
   const capa = { id: 1, efecto: 'texto', color: '#ffffff', color2: '#000000', velocidad: 0, texto: '🦊', inicio: 0 };
   let encendidos = 0;

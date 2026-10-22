@@ -143,7 +143,7 @@
     ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
     arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['modo', 'velocidad'],
   };
-  const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s' };
+  const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s', bandera: 'viento' };
   let efecto = 'solido';
   for (const [id, nombre] of Object.entries(Show.EFECTOS)) {
     const b = document.createElement('button');
