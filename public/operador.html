@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Panel del operador</title>
+<title>Pixel Crowd · Operador</title>
 <style>
   :root { --bg: #0b0b10; --panel: #15151e; --borde: #2a2a38; --texto: #eeeef5; --suave: #8f8fa6; --acento: #ff3d7f; --ok: #3ddc84; }
   * { box-sizing: border-box; }
@@ -12,6 +12,8 @@
   @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
   aside { border-right: 1px solid var(--borde); padding: 16px; overflow-y: auto; }
   h1 { font-size: 18px; margin: 0 0 4px; }
+  .marca { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: 0.18em; font-size: 11px; color: var(--suave); margin-bottom: 6px; }
+  .marca .logo { width: 14px; height: 14px; }
   .estado { color: var(--suave); font-size: 13px; margin-bottom: 16px; }
   .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e55; margin-right: 6px; }
   .punto.ok { background: var(--ok); }
@@ -59,6 +61,7 @@
 <body>
 <div class="app">
   <aside>
+    <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
     <h1>Panel del operador</h1>
     <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos ·
       <a href="/conectar" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>

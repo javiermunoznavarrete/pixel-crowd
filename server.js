@@ -245,7 +245,7 @@ servidor.on('error', (err) => {
 
 servidor.listen(PORT, '0.0.0.0', () => {
   const ips = ipsLocales();
-  console.log(`\nPantallas de concierto — ${recinto.nombre}\n`);
+  console.log(`\nPixel Crowd — ${recinto.nombre}\n`);
   console.log(`  Operador (en este PC):   http://localhost:${PORT}/operador${OP_TOKEN ? '  (requiere OP_TOKEN)' : ''}`);
   console.log(`  QR para el público:      http://localhost:${PORT}/conectar`);
   console.log(`  Simulador:               http://localhost:${PORT}/simulador\n`);

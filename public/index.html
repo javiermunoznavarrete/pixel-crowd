@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Luz del público</title>
+<title>Pixel Crowd</title>
 <style>
   :root {
     --bg: #0b0b10; --panel: #16161f; --borde: #2a2a38; --texto: #f2f2f7; --suave: #9a9ab0;
@@ -37,6 +37,9 @@
   details.mas { margin-top: 14px; }
   details.mas summary { color: var(--suave); padding: 10px 0; cursor: pointer; }
   details.mas .lista { margin-top: 8px; }
+  .marca { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: 0.18em; font-size: 13px; color: #fff; }
+  .marca .logo { width: 18px; height: 18px; }
+  .lema { color: var(--suave); font-size: 13px; margin: 6px 0 0; }
   .aviso { margin-top: 28px; padding: 14px; border-radius: 12px; background: #1f1a10; border: 1px solid #4a3a14; color: #e8cf8a; font-size: 14px; }
   .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: #2b2b3a; color: var(--suave);
     font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px; }
@@ -62,6 +65,8 @@
 <body>
 
 <section class="paso activo" id="paso-sector">
+  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
+  <p class="lema">Solo tu teléfono: sin pulseras, sin apps, sin instalar nada.</p>
   <h1>Ilumina el show</h1>
   <p class="sub">Tu pantalla será parte de las luces. Toca en el mapa el sector donde estás.</p>
   <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
@@ -110,7 +115,7 @@
 (async function () {
   const $ = (id) => document.getElementById(id);
   const recinto = await Show.cargarRecinto();
-  document.title = 'Luz del público · ' + recinto.nombre;
+  document.title = 'Pixel Crowd · ' + recinto.nombre;
 
   let ubicacion = null;
   let sector = null;

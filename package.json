@@ -1,7 +1,7 @@
 {
-  "name": "pantallas-concierto",
+  "name": "pixel-crowd",
   "version": "0.1.0",
-  "description": "Prototipo: coordinar las pantallas de los teléfonos del público por zona o asiento",
+  "description": "Pixel Crowd: las pantallas de los teléfonos del público como luces coordinadas, sin hardware",
   "private": true,
   "main": "server.js",
   "scripts": {

@@ -1,4 +1,8 @@
-# Pantallas de concierto — prototipo mixto
+# Pixel Crowd
+
+**El público es la pantalla.** Pixel Crowd coordina las pantallas de los teléfonos del público para que funcionen como luces en un concierto: colores por sector, olas, mosaicos de texto y una bandera formada por todo el recinto.
+
+**Solo el teléfono del usuario.** A diferencia de las pulseras LED (como PixMob o Xyloband), que necesitan repartir dispositivos y montar transmisores e infraestructura en el recinto, Pixel Crowd no usa hardware: se entra desde el navegador escaneando un QR, sin instalar apps.
 
 Coordina las pantallas de los teléfonos del público, como los lightsticks, pero sin hardware.
 
