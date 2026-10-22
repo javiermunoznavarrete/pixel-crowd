@@ -79,6 +79,15 @@
     font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
   .celda.sel { background: var(--acento); color: #fff; border-color: var(--acento); font-weight: 700; }
   .celda:disabled { opacity: 0.25; }
+  .silla { margin-top: 22px; padding: 14px 16px; border-radius: 14px; background: var(--bruma); }
+  .silla p { margin: 0; }
+  .silla-titulo { font-weight: 700; }
+  .silla-titulo span, .silla-ayuda { color: var(--suave); font-weight: 400; font-size: 14px; }
+  .silla-campos { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; margin-top: 10px; }
+  .silla-campos label { margin: 0; }
+  .silla-campos input { display: block; width: 100%; margin-top: 4px; padding: 12px; font: inherit; font-size: 18px; color: var(--texto);
+    background: var(--tinta); border: 1px solid var(--borde); border-radius: 10px; }
+  .silla-error { color: #ff8a9a; font-size: 14px; min-height: 0; }
   .etiq-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; color: var(--suave); font-size: 12px; text-align: center; margin-top: 6px; }
 
   #show { position: fixed; inset: 0; background: #000; display: none; }
@@ -141,7 +150,7 @@
   </div>
 
   <footer class="pie">
-    <p>Sin app ni registro: funciona en el navegador. Solo se usa tu ubicación en el recinto, nunca tu nombre ni tu número.</p>
+    <p>Sin app ni registro: funciona en el navegador. Solo se usa tu ubicación en el recinto, nunca tu nombre ni tu número de teléfono. Si anotas el número de tu silla, se guarda de forma anónima para mejorar el mapa del recinto.</p>
     <p>Pixel Crowd es un proyecto de Javier Julian Muñoz Navarrete, de uso no comercial. <a href="https://github.com/javiermunoznavarrete/pixel-crowd" target="_blank" rel="noopener">Ver el código</a>.</p>
     <p><a href="/">Otros shows con Pixel Crowd</a></p>
   </footer>
@@ -164,6 +173,15 @@
   <div class="escenario" id="referencia-zona">Escenario</div>
   <div class="grilla" id="grilla"></div>
   <div class="etiq-fila" id="lados-zona"><span>Izquierda</span><span>Centro</span><span>Derecha</span></div>
+  <div class="silla" id="bloque-silla" hidden>
+    <p class="silla-titulo">¿Ves un número en tu silla? <span>(opcional)</span></p>
+    <p class="silla-ayuda">Nos ayuda a armar el mapa del recinto para los próximos shows.</p>
+    <div class="silla-campos">
+      <label>Fila<input id="silla-fila" inputmode="text" maxlength="4" autocomplete="off" placeholder="—"></label>
+      <label>Número<input id="silla-numero" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="Ej. 23"></label>
+    </div>
+    <p class="silla-error" id="silla-error" role="alert"></p>
+  </div>
   <button class="principal" id="listo-zona" disabled>Encender mi pantalla</button>
 </section>
 
@@ -356,10 +374,16 @@
     profundidades: s.textos?.profundidades || Show.PROFUNDIDADES.map((p) => p.nombre),
     lados: s.textos?.lados || Show.LADOS.map((l) => l.nombre),
   });
+  // Zonas con sillas pero sin numeración en la entrada (graderías, palcos): se ofrece anotar el número de la silla
+  const tieneSillas = (s) => s.tipo === 'general' && s.grupo !== 'CANCHA' && !/cancha/i.test(s.nombre);
   function armarGrilla() {
     celdaSel = null;
     $('listo-zona').disabled = true;
     $('grilla').innerHTML = '';
+    $('bloque-silla').hidden = !tieneSillas(sector);
+    $('silla-fila').value = '';
+    $('silla-numero').value = '';
+    $('silla-error').textContent = '';
     const t = textosDe(sector);
     $('ayuda-zona').textContent = t.ayuda;
     $('referencia-zona').textContent = t.referencia;
@@ -378,7 +402,33 @@
       $('grilla').appendChild(c);
     }
   }
-  $('listo-zona').onclick = () => celdaSel && iniciar({ sector: sector.id, ...celdaSel });
+  // Identificador anónimo del teléfono (al azar, solo para no contar dos veces el mismo aporte)
+  function dispositivo() {
+    try {
+      let id = localStorage.getItem('pc-dispositivo');
+      if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('pc-dispositivo', id); }
+      return id;
+    } catch (e) { return 'sin-almacenamiento-' + Math.random().toString(16).slice(2, 10); }
+  }
+
+  $('listo-zona').onclick = () => {
+    if (!celdaSel) return;
+    const numero = $('silla-numero').value.trim();
+    const fila = $('silla-fila').value.trim().toUpperCase();
+    if (numero && !/^\d{1,4}$/.test(numero)) { $('silla-error').textContent = 'El número de silla solo lleva dígitos (por ejemplo 23).'; return; }
+    if (fila && !/^[A-Z0-9]{1,4}$/.test(fila)) { $('silla-error').textContent = 'La fila lleva hasta 4 letras o números.'; return; }
+    const u = { sector: sector.id, ...celdaSel };
+    if (numero && !$('bloque-silla').hidden) {
+      u.silla = numero;
+      if (fila) u.filaSilla = fila;
+      // El aporte no bloquea el show: si falla (sin red), se enciende igual
+      fetch(Show.api('/aporte'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zona: sector.id, ...celdaSel, fila, silla: numero, dispositivo: dispositivo() }),
+      }).catch(() => {});
+    }
+    iniciar(u);
+  };
 
   // ---- Show ----
   const reproductor = Show.crearReproductor();
@@ -394,7 +444,8 @@
     const lado = { izq: 'a la izquierda', centro: 'al centro', der: 'a la derecha' }[u.lado];
     if (s.textos) { // graderías: "Platea Baja fondo, filas de abajo, a la izquierda"
       const iy = Show.PROFUNDIDADES.findIndex((p) => p.id === u.profundidad);
-      return `${s.nombre}, ${textosDe(s).profundidades[iy].toLowerCase()}, ${lado}`;
+      const silla = u.silla ? `, ${u.filaSilla ? 'fila ' + u.filaSilla + ', ' : ''}silla ${u.silla}` : '';
+      return `${s.nombre}, ${textosDe(s).profundidades[iy].toLowerCase()}, ${lado}${silla}`;
     }
     const prof = { adelante: 'adelante', medio: 'al medio', atras: 'atrás' }[u.profundidad];
     // Cuadrantes de cancha: su etiqueta del mapa (C1…C4) es más corta que el nombre completo

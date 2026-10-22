@@ -221,6 +221,88 @@ setInterval(() => {
   }
 }, 2000);
 
+// ---------- Aportes de números de silla ----------
+// En zonas sin numerar (p. ej. las graderías del Caupolicán) el público puede indicar, de forma opcional,
+// la fila y el número que ve en su silla. Se guardan por recinto, sin datos personales (el teléfono se
+// identifica con una huella anónima), para reconstruir con el tiempo el mapa numerado.
+const DIR_APORTES = process.env.DATA_APORTES || path.join(__dirname, 'aportes');
+const LIMITE_APORTES = { cantidad: 20, ventanaMs: 10 * 60 * 1000 }; // por IP
+const aportesPorRecinto = new Map(); // recinto → Map(clave → aporte)
+const enviosPorIp = new Map(); // ip → [marcas de tiempo]
+
+const claveAporte = (a) => `${a.disp}|${a.zona}|${a.fila}|${a.silla}`;
+const archivoAportes = (recinto) => path.join(DIR_APORTES, `${recinto}.jsonl`);
+
+function aportesDe(recinto) {
+  if (aportesPorRecinto.has(recinto)) return aportesPorRecinto.get(recinto);
+  const mapa = new Map();
+  for (const linea of leerArchivo(archivoAportes(recinto)).split('\n')) {
+    if (!linea.trim()) continue;
+    try { const a = JSON.parse(linea); mapa.set(claveAporte(a), a); } catch { /* línea dañada: se ignora */ }
+  }
+  aportesPorRecinto.set(recinto, mapa);
+  return mapa;
+}
+
+// POST /api/e/<evento>/aporte { zona, profundidad, lado, fila?, silla, dispositivo }
+async function recibirAporte(ev, req, res) {
+  const ip = req.socket.remoteAddress;
+  const ahora = Date.now();
+  const marcas = (enviosPorIp.get(ip) || []).filter((t) => ahora - t < LIMITE_APORTES.ventanaMs);
+  if (marcas.length >= LIMITE_APORTES.cantidad) return json(res, 429, { error: 'Demasiados envíos, intenta más tarde' });
+
+  let d;
+  try { d = JSON.parse(await leerCuerpo(req, 2048)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
+  const s = ev.recinto.sectores.find((x) => x.id === d.zona);
+  const subzona = `${d.profundidad}-${d.lado}`;
+  const silla = String(d.silla ?? '').trim();
+  const fila = String(d.fila ?? '').trim().toUpperCase();
+  const disp = String(d.dispositivo ?? '');
+  if (!s || s.tipo !== 'general') return json(res, 400, { error: 'Zona no válida' });
+  if (!SUBZONAS.has(subzona)) return json(res, 400, { error: 'Parte de la zona no válida' });
+  if (!/^\d{1,4}$/.test(silla) || Number(silla) < 1) return json(res, 400, { error: 'El número de silla debe ser un número entre 1 y 9999' });
+  if (fila && !/^[A-Z0-9]{1,4}$/.test(fila)) return json(res, 400, { error: 'La fila debe tener hasta 4 letras o números' });
+  if (disp.length < 8 || disp.length > 64) return json(res, 400, { error: 'Falta el identificador del teléfono' });
+
+  const aporte = {
+    t: new Date(ahora).toISOString(), evento: ev.slug, recinto: ev.def.recinto, zona: s.id, subzona,
+    fila, silla: Number(silla), disp: crypto.createHash('sha256').update(disp).digest('hex').slice(0, 16),
+  };
+  marcas.push(ahora);
+  enviosPorIp.set(ip, marcas);
+  fs.mkdirSync(DIR_APORTES, { recursive: true });
+  fs.appendFileSync(archivoAportes(ev.def.recinto), JSON.stringify(aporte) + '\n');
+  aportesDe(ev.def.recinto).set(claveAporte(aporte), aporte);
+  json(res, 200, { ok: true });
+}
+
+// GET /api/e/<evento>/aportes[?formato=csv] — resumen por zona y celda, o todos los aportes en CSV
+function verAportes(ev, req, res, url) {
+  if (!sesionValida(req.headers['x-sesion'], ev)) return json(res, 401, { error: 'Sesión inválida o vencida' });
+  const lista = [...aportesDe(ev.def.recinto).values()];
+  if (url.searchParams.get('formato') === 'csv') {
+    const filas = ['fecha,evento,zona,subzona,fila,silla,telefono', ...lista.map((a) => [a.t, a.evento, a.zona, a.subzona, a.fila, a.silla, a.disp].join(','))];
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store',
+      'Content-Disposition': `attachment; filename="aportes-${ev.def.recinto}.csv"`,
+    });
+    return res.end(filas.join('\n') + '\n');
+  }
+  const porZona = {};
+  for (const a of lista) {
+    const z = (porZona[a.zona] ||= { nombre: ev.recinto.sectores.find((s) => s.id === a.zona)?.nombre || a.zona, n: 0, min: a.silla, max: a.silla, telefonos: new Set(), subzonas: {} });
+    z.n++; z.min = Math.min(z.min, a.silla); z.max = Math.max(z.max, a.silla); z.telefonos.add(a.disp);
+    const c = (z.subzonas[a.subzona] ||= { n: 0, min: a.silla, max: a.silla, filas: new Set() });
+    c.n++; c.min = Math.min(c.min, a.silla); c.max = Math.max(c.max, a.silla);
+    if (a.fila) c.filas.add(a.fila);
+  }
+  for (const z of Object.values(porZona)) {
+    z.telefonos = z.telefonos.size;
+    for (const c of Object.values(z.subzonas)) c.filas = [...c.filas].sort();
+  }
+  json(res, 200, { recinto: ev.def.recinto, total: lista.length, porZona });
+}
+
 // ---------- HTTP ----------
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
 
@@ -348,6 +430,8 @@ function apiEvento(ev, accion, req, res, url) {
     case 'estado': return json(res, 200, ev.estado);
     case 'red': return json(res, 200, { urls: urlsEvento(ev) });
     case 'escena': return req.method === 'POST' ? aplicarEscena(ev, req, res) : json(res, 405, { error: 'Usa POST' });
+    case 'aporte': return req.method === 'POST' ? recibirAporte(ev, req, res) : json(res, 405, { error: 'Usa POST' });
+    case 'aportes': return verAportes(ev, req, res, url);
     default: return json(res, 404, { error: 'No existe' });
   }
 }

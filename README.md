@@ -123,6 +123,13 @@ En el teatro las plateas se venden **sin asiento numerado** (y en el evento de r
 - Las 9 celdas de cada zona se reparten por cantidad de puntos: filas de abajo, del medio y de arriba (según la distancia a la cancha) × izquierda, centro y derecha (vistas por alguien sentado mirando hacia la cancha).
 - **Aproximaciones:** la escala (~0,3 m por unidad del plano; no hay medidas oficiales) y las alturas de las plateas, que solo se usan para la bandera gigante.
 
+### Números de silla aportados por el público
+Donde no hay mapa numerado (las graderías y palcos del Caupolicán, o cualquier zona general con sillas), la persona elige su zona y su celda y, **de forma opcional**, anota la fila y el número que ve en su silla. Así, después de uno o más shows, tenemos datos reales para reconstruir el mapa numerado aunque no consigamos el plano oficial.
+- Se guardan **por recinto** en `aportes/<recinto>.jsonl` (o en la carpeta de `DATA_APORTES`): fecha, evento, zona, celda, fila, número y una huella anónima del teléfono (para no contar dos veces). Sin nombre, teléfono ni IP.
+- Límite de 20 envíos por IP cada 10 minutos. El envío no bloquea el show: si no hay red, la pantalla se enciende igual.
+- En el panel del operador, "Números de silla aportados" muestra el resumen por zona y celda (cuántos aportes, rango de números, filas vistas) y descarga todo en CSV.
+- En Railway, la carpeta debe estar en un **volumen persistente**; si no, los aportes se pierden al redesplegar.
+
 `npm run recinto-demo` regenera el estadio de ejemplo.
 
 ## Límites del prototipo (pendiente para producción)

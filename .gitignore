@@ -3,3 +3,5 @@ node_modules/
 # Claves (locales, nunca al repositorio)
 clave-admin.txt
 data/eventos/*/clave.txt
+# Aportes del público (datos de uso, se guardan en el servidor)
+aportes/

@@ -123,6 +123,16 @@
       <div class="escenas" id="escenas"></div>
     </section>
 
+    <section data-plegable="aportes" data-plegado-movil>
+      <h2>Números de silla aportados</h2>
+      <p class="info-concierto">En zonas sin numerar, el público puede anotar la fila y el número de su silla. Se guardan por recinto, de forma anónima, para reconstruir el mapa numerado.</p>
+      <div id="aportes-resumen" class="info-concierto">Sin datos todavía.</div>
+      <div class="chips">
+        <button class="chip" id="aportes-actualizar" type="button">Actualizar</button>
+        <button class="chip" id="aportes-csv" type="button">Descargar CSV</button>
+      </div>
+    </section>
+
     <section class="ajustes" data-plegable="ajustes" data-plegado-movil>
       <h2>Ajustes</h2>
       <div class="param"><label>Adelanto (ms)</label><input type="text" id="adelanto" value="300" inputmode="numeric"></div>
@@ -337,6 +347,38 @@
 
   // ---- Conexión y conteos ----
   let revisandoSesion = false;
+
+  // ---- Aportes de números de silla ----
+  const NOMBRE_CELDA = (k) => {
+    const [p, l] = k.split('-');
+    return `${{ adelante: 'abajo', medio: 'medio', atras: 'arriba' }[p]}·${{ izq: 'izq', centro: 'centro', der: 'der' }[l]}`;
+  };
+  async function cargarAportes() {
+    try {
+      const r = await fetch(Show.api('/aportes'), { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' });
+      if (!r.ok) throw new Error((await r.json()).error);
+      const d = await r.json();
+      const zonas = Object.entries(d.porZona);
+      if (!zonas.length) { $('aportes-resumen').textContent = 'Sin datos todavía.'; return; }
+      $('aportes-resumen').innerHTML = `<strong>${d.total} aportes</strong> en ${d.recinto}<br>` + zonas.map(([, z]) =>
+        `<strong>${z.nombre}</strong>: ${z.n} (${z.telefonos} teléfonos), sillas ${z.min}–${z.max}<br>` +
+        Object.entries(z.subzonas).map(([k, c]) => `&nbsp;&nbsp;${NOMBRE_CELDA(k)}: ${c.n}, sillas ${c.min}–${c.max}${c.filas.length ? ', filas ' + c.filas.join(' ') : ''}`).join('<br>')
+      ).join('<br>');
+    } catch (e) {
+      $('aportes-resumen').textContent = 'No se pudieron cargar: ' + e.message;
+    }
+  }
+  $('aportes-actualizar').onclick = cargarAportes;
+  $('aportes-csv').onclick = async () => {
+    const r = await fetch(Show.api('/aportes?formato=csv'), { headers: { 'x-sesion': Sesion.get() } });
+    if (!r.ok) { $('aportes-resumen').textContent = 'No se pudo descargar el CSV.'; return; }
+    const enlace = document.createElement('a');
+    enlace.href = URL.createObjectURL(await r.blob());
+    enlace.download = `aportes-${Show.evento}.csv`;
+    enlace.click();
+    URL.revokeObjectURL(enlace.href);
+  };
+  cargarAportes();
   Show.conectar({
     rol: 'operador',
     sesion: Sesion.get(),

@@ -6,7 +6,10 @@ const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 
+const fs = require('fs');
+const os = require('os');
 const PORT = 3900 + Math.floor(Math.random() * 90);
+const DIR_APORTES = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-aportes-'));
 const BASE = `http://localhost:${PORT}`;
 let proc;
 
@@ -18,6 +21,7 @@ test.before(async () => {
       ...process.env, PORT, CLAVE_ADMIN: 'secreto', CLAVE_EVENTO_PRUEBA_B: 'clave-b', URL_PUBLICO: 'https://ejemplo.cl',
       EVENTOS_DIR: path.join(__dirname, 'fixtures', 'eventos'),
       RECINTOS_DIR: path.join(__dirname, '..', 'data', 'recintos'),
+      DATA_APORTES: DIR_APORTES,
     },
   });
   await new Promise((resolve, reject) => {
@@ -201,6 +205,41 @@ test('el operador recibe la ocupación real: asiento declarado y subzona de canc
 test('el QR de cada evento apunta a su propia dirección', async () => {
   const { urls } = await (await fetch(BASE + '/api/e/prueba-b/red')).json();
   assert.deepStrictEqual(urls, ['https://ejemplo.cl/prueba-b']);
+});
+
+const aporte = (cuerpo, ev = 'prueba-a') => fetch(`${BASE}/api/e/${ev}/aporte`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+});
+
+test('aportes de número de silla: se validan, se guardan por recinto sin repetir y solo el admin los ve', async () => {
+  const base = { zona: 'CANCHA', profundidad: 'medio', lado: 'izq', dispositivo: 'telefono-de-prueba-1' };
+  assert.strictEqual((await aporte({ ...base, silla: '23', fila: 'c' })).status, 200);
+  assert.strictEqual((await aporte({ ...base, silla: '23', fila: 'C' })).status, 200); // repetido: no suma
+  assert.strictEqual((await aporte({ ...base, silla: '41', dispositivo: 'telefono-de-prueba-2' })).status, 200);
+  // Inválidos
+  assert.strictEqual((await aporte({ ...base, silla: 'veinte' })).status, 400);
+  assert.strictEqual((await aporte({ ...base, silla: '0' })).status, 400);
+  assert.strictEqual((await aporte({ ...base, silla: '5', fila: 'muy-larga' })).status, 400);
+  assert.strictEqual((await aporte({ ...base, zona: 'G1', silla: '5' })).status, 400); // sector numerado: no aplica
+  assert.strictEqual((await aporte({ ...base, silla: '5', dispositivo: '' })).status, 400);
+
+  // Resumen y CSV requieren sesión
+  assert.strictEqual((await fetch(`${BASE}/api/e/prueba-a/aportes`)).status, 401);
+  const resumen = await (await fetch(`${BASE}/api/e/prueba-a/aportes`, { headers: { 'x-sesion': SESION } })).json();
+  assert.strictEqual(resumen.total, 2);
+  const z = resumen.porZona.CANCHA;
+  assert.deepStrictEqual([z.n, z.min, z.max, z.telefonos], [2, 23, 41, 2]);
+  assert.deepStrictEqual(z.subzonas['medio-izq'].filas, ['C']);
+  const csv = await (await fetch(`${BASE}/api/e/prueba-a/aportes?formato=csv`, { headers: { 'x-sesion': SESION } })).text();
+  assert.strictEqual(csv.trim().split('\n').length, 3);
+  assert.ok(!csv.includes('telefono-de-prueba')); // el identificador se guarda como huella, no tal cual
+
+  // Persistencia: el archivo del recinto tiene las líneas aceptadas
+  const lineas = fs.readFileSync(path.join(DIR_APORTES, 'demo.jsonl'), 'utf8').trim().split('\n');
+  assert.strictEqual(lineas.length, 3); // se registran los 3 envíos válidos; el resumen deduplica
+  // Otro evento en el mismo recinto ve los mismos aportes (el mapa se arma por recinto)
+  const resumenB = await (await fetch(`${BASE}/api/e/prueba-b/aportes`, { headers: { 'x-sesion': SESION } })).json();
+  assert.strictEqual(resumenB.total, 2);
 });
 
 // Al final: deja la IP bloqueada un minuto
