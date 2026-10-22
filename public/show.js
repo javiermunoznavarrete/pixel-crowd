@@ -309,9 +309,11 @@
         return pixelTexto(capa, pos.grid, el, v) ? c1 : c2;
       case 'bandera': {
         let u, w;
+        let estrella = !!pos.grid;
         if (capa.modo !== 'sector' && pos.vista) { // una sola bandera con todo el público, vista desde el escenario
           u = pos.vista.u;
           w = pos.vista.v;
+          estrella = false; // a esta escala la estrella queda deforme: el cantón va azul liso
         } else if (pos.grid) { // sector numerado: la bandera ocupa toda su grilla, vista desde la cancha
           u = (pos.grid.col + 0.5) / pos.grid.cols;
           w = (pos.grid.rows - 1 - pos.grid.row + 0.5) / pos.grid.rows;
@@ -321,7 +323,7 @@
         } else return BLANCO;
         // Ondeo suave: una sombra que recorre la bandera (velocidad 0 = quieta)
         const k = v > 0 ? 0.8 + 0.2 * Math.sin(2 * Math.PI * (u * 1.3 - el * v / 40)) : 1;
-        const [r, g, b] = colorBandera(u, w, !!pos.grid);
+        const [r, g, b] = colorBandera(u, w, estrella);
         return [r * k, g * k, b * k];
       }
       default:

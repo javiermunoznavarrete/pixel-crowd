@@ -120,9 +120,15 @@ test('bandera completa: todo el público forma una sola bandera, repartida por c
     }
   }
   const total = peso.rojo + peso.azul + peso.blanco;
-  // Mitad roja, y en la mitad de arriba un tercio de cantón azul (menos la estrella)
+  // Mitad roja, y en la mitad de arriba un tercio de cantón azul liso (sin estrella en la bandera grande)
   assert.ok(Math.abs(peso.rojo / total - 0.5) < 0.12, `rojo ${(peso.rojo / total).toFixed(2)}`);
-  assert.ok(peso.azul / total > 0.08 && peso.azul / total < 0.2, `azul ${(peso.azul / total).toFixed(2)}`);
+  assert.ok(peso.azul / total > 0.1 && peso.azul / total < 0.22, `azul ${(peso.azul / total).toFixed(2)}`);
+  // Ningún asiento del cantón queda blanco
+  for (const s of recinto.sectores) if (s.tipo === 'numerada') for (const a of s.mapa.values()) {
+    if (a.vista.u < 1 / 3 && a.vista.v < 0.5) {
+      assert.strictEqual([...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid, vista: a.vista }, 0)].join(','), '0,57,166');
+    }
+  }
 });
 
 test('bandera completa: arriba la gente más alta y lejana, abajo la cancha cercana al escenario', () => {
