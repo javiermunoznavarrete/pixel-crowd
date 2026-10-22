@@ -214,7 +214,14 @@
     rol: 'operador',
     alStats: (s) => {
       $('total').textContent = s.publico;
-      for (const [z, n] of Object.entries(s.porZona)) { const el = $('n-' + z); if (el) el.textContent = n; }
+      for (const [z, n] of Object.entries(s.porZona)) {
+        const el = $('n-' + z);
+        if (!el) continue;
+        const sector = recinto.porId[z];
+        // En sectores numerados se muestra además la ocupación respecto de su capacidad
+        el.textContent = sector.tipo === 'numerada' && sector.asientos.length
+          ? `${n} · ${Math.round(100 * n / sector.asientos.length)}%` : n;
+      }
     },
     alConexion: (ok) => {
       $('punto').classList.toggle('ok', ok);

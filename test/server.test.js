@@ -80,6 +80,29 @@ test('sanea parámetros peligrosos o inválidos', async () => {
   assert.strictEqual(estado.capas.CANCHA.hz, 3);
 });
 
+test('el operador recibe la ocupación real: asiento declarado y subzona de cancha', async () => {
+  const recinto = await (await fetch(BASE + '/api/recinto')).json();
+  // Índice global del asiento G2 fila C asiento 40 (mismo orden que el servidor)
+  let idx = 0, buscado = -1;
+  for (const s of recinto.sectores) if (s.tipo === 'numerada') for (const [f, a] of s.asientos) {
+    if (s.id === 'G2' && f === 'C' && a === '40') buscado = idx;
+    idx++;
+  }
+  const tel1 = abrirSSE('rol=publico&zona=G2&fila=C&asiento=40');
+  const tel2 = abrirSSE('rol=publico&zona=CANCHA&profundidad=adelante&lado=izq');
+  const tel3 = abrirSSE('rol=publico&zona=G1&fila=Z&asiento=999'); // asiento inexistente: no cuenta
+  await esperar(300);
+  const op = abrirSSE('rol=operador');
+  await esperar(300);
+  tel1.cerrar(); tel2.cerrar(); tel3.cerrar(); op.cerrar();
+  const o = op.eventos.filter((e) => e.evento === 'ocupacion').at(-1).datos;
+  const bits = Buffer.from(o.asientos, 'base64');
+  const encendidos = [];
+  for (let i = 0; i < o.totalAsientos; i++) if (bits[i >> 3] & (1 << (i & 7))) encendidos.push(i);
+  assert.deepStrictEqual(encendidos, [buscado]);
+  assert.strictEqual(o.generales.CANCHA['adelante-izq'], 1);
+});
+
 test('el operador recibe el conteo de teléfonos por zona', async () => {
   const tel = abrirSSE('rol=publico&zona=G3');
   const op = abrirSSE('rol=operador');

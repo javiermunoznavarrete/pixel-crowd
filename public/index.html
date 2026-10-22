@@ -300,7 +300,7 @@
 
     if (conexion) conexion.close();
     conexion = Show.conectar({
-      rol: 'publico', zona: u.sector,
+      rol: 'publico', zona: u.sector, ubicacion: u,
       alEstado: (e) => reproductor.actualizar(e),
       alConexion: (ok) => {
         $('info-punto').classList.toggle('ok', ok);

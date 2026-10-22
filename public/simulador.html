@@ -5,13 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Simulador del estadio</title>
 <style>
-  :root { --bg: #07070b; --panel: #12121a; --borde: #262634; --texto: #ececf3; --suave: #8c8ca3; }
+  :root { --bg: #07070b; --panel: #12121a; --borde: #262634; --texto: #ececf3; --suave: #8c8ca3; --acento: #ff3d7f; --ok: #3ddc84; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--texto); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--borde); }
+  header { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--borde); }
   header h1 { font-size: 16px; margin: 0; }
   header label { display: flex; align-items: center; gap: 8px; color: var(--suave); }
   body.embed header h1 { display: none; }
+  .modo { display: inline-flex; border: 1px solid var(--borde); border-radius: 999px; overflow: hidden; }
+  .modo button { font: inherit; color: var(--suave); background: none; border: 0; padding: 6px 14px; cursor: pointer; }
+  .modo button.sel { background: var(--acento); color: #fff; }
+  .indicador { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--borde); }
+  .indicador .grande { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .indicador .dato { color: var(--suave); }
+  .indicador .dato b { color: var(--texto); font-variant-numeric: tabular-nums; }
+  .barra { flex: 1 1 160px; height: 8px; background: #1f1f2b; border-radius: 4px; overflow: hidden; min-width: 120px; align-self: center; }
+  .barra i { display: block; height: 100%; background: var(--ok); width: 0; transition: width 0.5s; }
   main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 16px; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
   .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px; }
@@ -19,23 +28,30 @@
   canvas { display: block; width: 100%; }
   .frontal { margin-bottom: 14px; }
   .frontal:last-child { margin-bottom: 0; }
-  .frontal .t { font-size: 13px; margin-bottom: 4px; }
+  .frontal .t { font-size: 13px; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
   .frontal .t span { color: var(--suave); }
+  #frontales { max-height: 70vh; overflow-y: auto; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <header>
   <h1>Simulador del estadio</h1>
-  <label>Participación <input type="range" id="part" min="10" max="100" value="60"> <span id="part-v">60%</span></label>
-  <label><input type="checkbox" id="real"> Cancha con posición real (sin declarar)</label>
+  <div class="modo" role="group" aria-label="Modo">
+    <button data-modo="vivo" class="sel">En vivo</button>
+    <button data-modo="sim">Simulación</button>
+  </div>
+  <label class="solo-sim" hidden>Participación <input type="range" id="part" min="10" max="100" value="60"> <span id="part-v">60%</span></label>
+  <label class="solo-sim" hidden><input type="checkbox" id="real"> Cancha con posición real (sin declarar)</label>
 </header>
+<div class="indicador" id="indicador"></div>
 <main>
   <div class="caja">
     <h2>Vista aérea</h2>
     <canvas id="mapa"></canvas>
   </div>
   <div class="caja">
-    <h2>Galerías vistas de frente (mosaicos)</h2>
+    <h2>Sectores numerados vistos de frente (mosaicos)</h2>
     <div id="frontales"></div>
   </div>
 </main>
@@ -48,40 +64,96 @@
 
   const recinto = await Show.cargarRecinto();
   const reproductor = Show.crearReproductor();
+  const indice = Show.indiceAsientos(recinto);
+  let ocupacion = null; // ocupación real informada por el servidor
+  let modo = 'vivo';
+
   Show.sincronizarReloj();
   setInterval(Show.sincronizarReloj, 30000);
-  Show.conectar({ rol: 'simulador', alEstado: (e) => reproductor.actualizar(e) });
+  Show.conectar({
+    rol: 'simulador',
+    alEstado: (e) => reproductor.actualizar(e),
+    alOcupacion: (o) => { ocupacion = o; actualizarIndicador(); },
+  });
 
   // Pseudoaleatorio con semilla para que la simulación sea estable entre recargas
   let semilla = 7;
   const azar = () => ((semilla = (semilla * 16807) % 2147483647) / 2147483647);
 
-  // ---- Teléfonos virtuales ----
-  const telefonos = [];
+  // ---- Teléfonos ----
+  // Asientos: uno por asiento numerado. Zonas generales: una reserva de puntos por subzona; en modo
+  // simulación se usan todos, en vivo solo tantos como teléfonos declararon esa subzona.
+  const asientos = [];
+  const generales = []; // { s, subzonas: { clave: [puntos] } }
+  const MAX_PUNTOS_SUBZONA = 400;
   for (const s of recinto.sectores) {
     if (s.tipo === 'numerada') {
       for (const a of s.mapa.values()) {
-        telefonos.push({ zona: s.id, x: a.x, y: a.y, pos: { zona: s.id, x: a.x, y: a.y, grid: a.grid }, sector: s, r: azar() });
+        asientos.push({ zona: s.id, x: a.x, y: a.y, pos: { zona: s.id, x: a.x, y: a.y, grid: a.grid }, sector: s, r: azar(),
+          idx: indice.get(`${s.id}|${a.fila}|${a.asiento}`) });
       }
     } else {
       const { x1, y1, x2, y2 } = s.rect;
-      for (let i = 0; i < 1800; i++) {
-        const x = x1 + azar() * (x2 - x1), y = y1 + azar() * (y2 - y1);
-        const p = Show.PROFUNDIDADES[Math.min(2, Math.floor((y - y1) / (y2 - y1) * 3))].id;
-        const l = Show.LADOS[Math.min(2, Math.floor((x - x1) / (x2 - x1) * 3))].id;
-        telefonos.push({
-          zona: s.id, x, y, r: azar(),
-          pos: Show.posicionDe(recinto, { sector: s.id, profundidad: p, lado: l }), // lo que declara
-          posReal: { zona: s.id, x, y, grid: null },
-        });
-      }
+      const subzonas = {};
+      Show.PROFUNDIDADES.forEach((p, iy) => Show.LADOS.forEach((l, ix) => {
+        const pos = Show.posicionDe(recinto, { sector: s.id, profundidad: p.id, lado: l.id });
+        const puntos = [];
+        for (let i = 0; i < MAX_PUNTOS_SUBZONA; i++) {
+          const x = x1 + (ix + azar()) * (x2 - x1) / 3, y = y1 + (iy + azar()) * (y2 - y1) / 3;
+          puntos.push({ zona: s.id, x, y, r: azar(), pos, posReal: { zona: s.id, x, y, grid: null } });
+        }
+        subzonas[p.id + '-' + l.id] = puntos;
+      }));
+      generales.push({ s, subzonas });
     }
   }
+  const capacidad = {};
+  for (const a of asientos) capacidad[a.zona] = (capacidad[a.zona] || 0) + 1;
+
+  // ---- Indicador de participación ----
+  const fmt = (n) => n.toLocaleString('es-CL');
+  function actualizarIndicador() {
+    if (modo !== 'vivo') {
+      $('indicador').innerHTML = `<span class="dato">Modo simulación: ${$('part').value}% de participación imaginaria. Cambia a <b>En vivo</b> para ver los teléfonos reales.</span>`;
+      return;
+    }
+    if (!ocupacion) { $('indicador').innerHTML = '<span class="dato">Esperando datos del servidor…</span>'; return; }
+    let ocupados = 0;
+    const porSector = {};
+    for (const a of asientos) if (ocupacion.ocupado(a.idx)) { ocupados++; porSector[a.zona] = (porSector[a.zona] || 0) + 1; }
+    let enGenerales = 0;
+    const detalleGen = [];
+    for (const { s } of generales) {
+      const n = Object.values(ocupacion.generales[s.id] || {}).reduce((a, b) => a + b, 0);
+      enGenerales += n;
+      detalleGen.push(`${s.nombre}: <b>${fmt(n)}</b>`);
+    }
+    const pct = asientos.length ? (100 * ocupados / asientos.length) : 0;
+    const top = Object.entries(porSector).map(([z, n]) => [z, n / capacidad[z]]).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([z, p]) => `${recinto.porId[z].nombre} ${Math.round(p * 100)}%`).join(' · ');
+    $('indicador').innerHTML = `
+      <span class="grande">${fmt(ocupados + enGenerales)}</span><span class="dato">teléfonos encendidos</span>
+      <span class="dato">Asientos: <b>${fmt(ocupados)}</b> de ${fmt(asientos.length)} (<b>${pct.toFixed(1)}%</b>)</span>
+      <span class="barra" title="Ocupación de asientos numerados"><i style="width:${Math.min(100, pct)}%"></i></span>
+      <span class="dato">${detalleGen.join(' · ')}</span>
+      ${top ? `<span class="dato">Más llenos: ${top}</span>` : ''}`;
+  }
+
+  // ---- Modo ----
+  document.querySelectorAll('.modo button').forEach((b) => b.onclick = () => {
+    modo = b.dataset.modo;
+    document.querySelectorAll('.modo button').forEach((x) => x.classList.toggle('sel', x === b));
+    document.querySelectorAll('.solo-sim').forEach((x) => x.hidden = modo !== 'sim');
+    actualizarIndicador();
+  });
+  $('part').oninput = () => { $('part-v').textContent = $('part').value + '%'; actualizarIndicador(); };
+  actualizarIndicador();
 
   // ---- Límites del mapa ----
   const e = recinto.escenario;
   let minX = e.x1, maxX = e.x2, minY = e.y1, maxY = e.y2;
-  for (const t of telefonos) { minX = Math.min(minX, t.x); maxX = Math.max(maxX, t.x); minY = Math.min(minY, t.y); maxY = Math.max(maxY, t.y); }
+  for (const t of asientos) { minX = Math.min(minX, t.x); maxX = Math.max(maxX, t.x); minY = Math.min(minY, t.y); maxY = Math.max(maxY, t.y); }
+  for (const { s } of generales) { minX = Math.min(minX, s.rect.x1); maxX = Math.max(maxX, s.rect.x2); minY = Math.min(minY, s.rect.y1); maxY = Math.max(maxY, s.rect.y2); }
   minX -= 2; maxX += 2; minY -= 2; maxY += 2;
 
   const mapa = $('mapa');
@@ -101,11 +173,11 @@
   const frontales = recinto.sectores.filter((s) => s.tipo === 'numerada').map((s) => {
     const div = document.createElement('div');
     div.className = 'frontal';
-    div.innerHTML = `<div class="t">${s.nombre} <span>· vista desde ${s.vistaDesde || 'el frente'}</span></div>`;
+    div.innerHTML = `<div class="t"><div>${s.nombre} <span>· vista desde ${s.vistaDesde || 'el frente'}</span></div><span class="pct"></span></div>`;
     const c = document.createElement('canvas');
     div.appendChild(c);
     $('frontales').appendChild(div);
-    return { s, c, ctx: c.getContext('2d'), tels: telefonos.filter((t) => t.sector === s) };
+    return { s, c, ctx: c.getContext('2d'), tels: asientos.filter((t) => t.sector === s), pct: div.querySelector('.pct') };
   });
   function ajustarFrontales() {
     const dpr = window.devicePixelRatio || 1;
@@ -123,7 +195,9 @@
   window.addEventListener('resize', ajustar);
   ajustar();
 
-  $('part').oninput = () => $('part-v').textContent = $('part').value + '%';
+  // ¿Este asiento tiene un teléfono encendido? (en vivo: real; en simulación: al azar según el %)
+  const encendido = (t, part) => (modo === 'vivo' ? !!ocupacion && ocupacion.ocupado(t.idx) : t.r <= part);
+  const VACIO = '#1a1a26';
 
   function cuadro() {
     const t = Show.ahora();
@@ -137,26 +211,47 @@
     ctx.fillStyle = '#8c8ca3';
     ctx.font = '12px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('ESCENARIO', (0 - minX) * escala, ((e.y1 + e.y2) / 2 - minY) * escala + 4);
+    ctx.fillText('ESCENARIO', ((e.x1 + e.x2) / 2 - minX) * escala, ((e.y1 + e.y2) / 2 - minY) * escala + 4);
 
+    // Zonas generales: contorno tenue y un punto por teléfono
+    for (const { s, subzonas } of generales) {
+      ctx.strokeStyle = '#262634';
+      ctx.strokeRect((s.rect.x1 - minX) * escala, (s.rect.y1 - minY) * escala, (s.rect.x2 - s.rect.x1) * escala, (s.rect.y2 - s.rect.y1) * escala);
+      const capa = reproductor.capa(s.id, t);
+      const tam = Math.max(1.5, 0.6 * escala);
+      for (const [clave, puntos] of Object.entries(subzonas)) {
+        const n = modo === 'vivo' ? Math.min(puntos.length, (ocupacion && ocupacion.generales[s.id]?.[clave]) || 0) : puntos.length;
+        for (let i = 0; i < n; i++) {
+          const p = puntos[i];
+          if (modo === 'sim' && p.r > part) continue;
+          const pos = modo === 'sim' && real ? p.posReal : p.pos;
+          ctx.fillStyle = Show.css(Show.colorEn(capa, pos, t));
+          ctx.fillRect((p.x - minX) * escala, (p.y - minY) * escala, tam, tam);
+        }
+      }
+    }
+
+    // Asientos: encendidos con su color, vacíos en gris oscuro para ver la forma del recinto
     const tam = Math.max(1.5, 0.5 * escala);
-    for (const tel of telefonos) {
-      if (tel.r > part) continue;
-      const pos = real && tel.posReal ? tel.posReal : tel.pos;
-      ctx.fillStyle = Show.css(Show.colorEn(reproductor.capa(tel.zona, t), pos, t));
-      ctx.fillRect((tel.x - minX) * escala, (tel.y - minY) * escala, tam, tam);
+    for (const a of asientos) {
+      ctx.fillStyle = encendido(a, part) ? Show.css(Show.colorEn(reproductor.capa(a.zona, t), a.pos, t)) : VACIO;
+      ctx.fillRect((a.x - minX) * escala, (a.y - minY) * escala, tam, tam);
     }
 
     for (const f of frontales) {
       f.ctx.fillStyle = '#000';
       f.ctx.fillRect(0, 0, f.c.width, f.c.height);
       const capa = reproductor.capa(f.s.id, t);
-      for (const tel of f.tels) {
-        if (tel.r > part) continue;
-        const g = tel.pos.grid;
-        f.ctx.fillStyle = Show.css(Show.colorEn(capa, tel.pos, t));
+      let n = 0;
+      for (const a of f.tels) {
+        const on = encendido(a, part);
+        if (on) n++;
+        const g = a.pos.grid;
+        f.ctx.fillStyle = on ? Show.css(Show.colorEn(capa, a.pos, t)) : VACIO;
         f.ctx.fillRect(g.col * f.celda, (g.rows - 1 - g.row) * f.celda, Math.max(1, f.celda - 1), Math.max(1, f.celda - 1));
       }
+      const txt = `${n} / ${f.tels.length}`;
+      if (f.pct.textContent !== txt) f.pct.textContent = txt;
     }
     requestAnimationFrame(cuadro);
   }

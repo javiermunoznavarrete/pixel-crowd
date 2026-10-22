@@ -257,15 +257,42 @@
     };
   }
 
-  function conectar({ rol, zona, alEstado, alStats, alConexion }) {
+  // ubicacion (solo público): se informa al servidor para mostrar la ocupación real en el panel
+  function conectar({ rol, zona, ubicacion, alEstado, alStats, alOcupacion, alConexion }) {
     const q = new URLSearchParams({ rol });
     if (zona) q.set('zona', zona);
+    if (ubicacion) {
+      for (const k of ['fila', 'asiento', 'profundidad', 'lado']) if (ubicacion[k] !== undefined) q.set(k, ubicacion[k]);
+    }
     const es = new EventSource('/api/events?' + q);
     es.addEventListener('estado', (e) => alEstado && alEstado(JSON.parse(e.data)));
     es.addEventListener('stats', (e) => alStats && alStats(JSON.parse(e.data)));
+    es.addEventListener('ocupacion', (e) => alOcupacion && alOcupacion(decodificarOcupacion(JSON.parse(e.data))));
     es.onopen = () => alConexion && alConexion(true);
     es.onerror = () => alConexion && alConexion(false);
     return es;
+  }
+
+  // { totalAsientos, asientos: base64 bitset, generales } → { ocupado(idx), generales, totalAsientos }
+  function decodificarOcupacion(o) {
+    const bin = atob(o.asientos);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return {
+      totalAsientos: o.totalAsientos,
+      generales: o.generales,
+      ocupado: (idx) => (bytes[idx >> 3] & (1 << (idx & 7))) !== 0,
+    };
+  }
+
+  // Índice global de cada asiento (mismo orden que usa el servidor): clave "sector|fila|asiento" → índice
+  function indiceAsientos(recinto) {
+    const indice = new Map();
+    let n = 0;
+    for (const s of recinto.sectores) {
+      if (s.tipo === 'numerada') for (const [fila, asiento] of s.asientos) indice.set(`${s.id}|${fila}|${asiento}`, n++);
+    }
+    return indice;
   }
 
   async function cargarRecinto() {
@@ -276,7 +303,7 @@
   const css = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
 
   window.Show = {
-    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, colorEn, css,
+    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, colorEn, css, indiceAsientos,
     crearReproductor, conectar, EFECTOS, PROFUNDIDADES, LADOS, MAX_HZ_ESTROBO,
   };
 })();

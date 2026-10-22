@@ -39,6 +39,27 @@ const recinto = cargarRecinto();
 const ZONAS = recinto.sectores.map((s) => s.id);
 const recintoJson = JSON.stringify(recinto);
 
+// Índice global de cada asiento, en el mismo orden en que aparecen en /api/recinto.
+// La ocupación se informa como un bitset sobre este índice (~1 KB para 8.000 asientos).
+const indiceAsiento = new Map();
+let totalAsientos = 0;
+for (const s of recinto.sectores) {
+  if (s.tipo === 'numerada') for (const [fila, asiento] of s.asientos) indiceAsiento.set(`${s.id}|${fila}|${asiento}`, totalAsientos++);
+}
+const SUBZONAS = new Set(['adelante', 'medio', 'atras'].flatMap((p) => ['izq', 'centro', 'der'].map((l) => `${p}-${l}`)));
+
+// Ubicación declarada por un teléfono (validada contra el mapa); null si no es válida.
+function ubicacionDe(params) {
+  const s = recinto.sectores.find((x) => x.id === params.get('zona'));
+  if (!s) return null;
+  if (s.tipo === 'numerada') {
+    const idx = indiceAsiento.get(`${s.id}|${params.get('fila')}|${params.get('asiento')}`);
+    return idx === undefined ? null : { asiento: idx };
+  }
+  const sub = `${params.get('profundidad')}-${params.get('lado')}`;
+  return SUBZONAS.has(sub) ? { subzona: sub } : null;
+}
+
 // ---------- Estado del show ----------
 const EFECTOS = ['solido', 'pulso', 'estrobo', 'ola', 'onda', 'arcoiris', 'texto'];
 let contadorCapas = 0;
@@ -85,11 +106,34 @@ function stats() {
   return { publico, porZona, conexiones: clientes.size };
 }
 
+// Qué asientos tienen un teléfono conectado y cuántos hay en cada subzona de las zonas generales
+function ocupacion() {
+  const bits = Buffer.alloc(Math.ceil(totalAsientos / 8));
+  const generales = {};
+  for (const c of clientes) {
+    if (c.rol !== 'publico' || !c.ubicacion) continue;
+    if (c.ubicacion.asiento !== undefined) bits[c.ubicacion.asiento >> 3] |= 1 << (c.ubicacion.asiento & 7);
+    else {
+      const g = (generales[c.zona] ||= {});
+      g[c.ubicacion.subzona] = (g[c.ubicacion.subzona] || 0) + 1;
+    }
+  }
+  return { totalAsientos, asientos: bits.toString('base64'), generales };
+}
+
+const OBSERVADORES = new Set(['operador', 'simulador']);
+let ultimaOcupacion = '';
+
 setInterval(() => {
   const s = stats();
+  const o = ocupacion();
+  const oJson = JSON.stringify(o);
+  const cambio = oJson !== ultimaOcupacion;
+  ultimaOcupacion = oJson;
   for (const c of clientes) {
     if (c.rol === 'operador') enviar(c.res, 'stats', s);
-    else c.res.write(': ping\n\n'); // mantiene viva la conexión a través de proxies
+    if (OBSERVADORES.has(c.rol) && cambio) enviar(c.res, 'ocupacion', o);
+    if (c.rol !== 'operador') c.res.write(': ping\n\n'); // mantiene viva la conexión a través de proxies
   }
 }, 2000);
 
@@ -158,9 +202,11 @@ function eventos(req, res, url) {
   });
   res.write('retry: 2000\n\n');
   const cliente = { res, rol: url.searchParams.get('rol') || 'publico', zona: url.searchParams.get('zona') };
+  if (cliente.rol === 'publico') cliente.ubicacion = ubicacionDe(url.searchParams);
   clientes.add(cliente);
   enviar(res, 'estado', estado);
   if (cliente.rol === 'operador') enviar(res, 'stats', stats());
+  if (OBSERVADORES.has(cliente.rol)) enviar(res, 'ocupacion', ocupacion());
   req.on('close', () => clientes.delete(cliente));
 }
 
