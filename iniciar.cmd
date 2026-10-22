@@ -1,4 +1,6 @@
 @echo off
+rem Pixel Crowd - Copyright (c) 2026 Javier Julian Munoz Navarrete
+rem SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 chcp 65001 >nul
 title Pixel Crowd
 cd /d "%~dp0"

@@ -96,3 +96,14 @@ Limitaciones conocidas:
 - **Show precargado:** hoy los efectos se lanzan en vivo. Lo siguiente es una línea de tiempo por canción descargada antes del show, que solo necesite la señal de "arranca".
 - **Brillo y linterna:** la web no puede subir el brillo ni usar la linterna en iPhone. Eso requiere app nativa.
 - **Recintos curvos:** la grilla del mosaico usa el orden de los asientos dentro de cada fila. En galerías muy curvas conviene proyectar por coordenadas.
+
+## Licencia
+
+Copyright (c) 2026 Javier Julian Muñoz Navarrete.
+
+Pixel Crowd se distribuye bajo la **[PolyForm Noncommercial License 1.0.0](LICENSE.md)**. En resumen (el texto que vale es el de `LICENSE.md`):
+- **Se permite** usarlo, estudiarlo y modificarlo con fines **no comerciales**: uso personal, aficionados, acciones de fans sin fines de lucro, educación e investigación, y organizaciones sin fines de lucro, instituciones educativas, públicas o de beneficencia.
+- **No se permite** el uso comercial (por ejemplo, venderlo como servicio, cobrar por montar shows con él o integrarlo en un producto comercial) sin una licencia aparte del titular.
+- Quien lo redistribuya debe incluir estos términos y la línea `Required Notice:` de `LICENSE.md`.
+
+Las librerías de terceros en `public/vendor/` conservan sus propias licencias MIT: NoSleep.js (Rich Tibbett) y qrcode-generator (Kazuhiko Arase).

@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 const test = require('node:test');
 const assert = require('node:assert');
 const { spawn } = require('child_process');

@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Paneles minimizables: cualquier elemento con data-plegable="<id>" se pliega/despliega tocando su
 // primer <h2>. El estado se guarda por página en este dispositivo. Con data-plegado-movil, el panel
 // arranca minimizado en pantallas angostas (si el usuario no lo cambió antes).

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "description": "Pixel Crowd: las pantallas de los teléfonos del público como luces coordinadas, sin hardware",
   "private": true,
+  "author": "Javier Julian Muñoz Navarrete",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

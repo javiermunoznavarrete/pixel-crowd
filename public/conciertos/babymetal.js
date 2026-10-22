@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Presets del concierto de BABYMETAL en Santiago (jueves 3 dic 2026, Movistar Arena).
 // Orden basado en el setlist de la gira mundial 2026 (fechas de octubre en setlist.fm); el setlist
 // de Santiago puede variar. Los BPM son aproximados: ajústalos en el ensayo.

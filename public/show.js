@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Motor compartido (público, operador y simulador).
 // Cada teléfono calcula su color localmente a partir de: la capa activa de su zona,
 // su posición y la hora sincronizada con el servidor. Así no se envían mensajes por frame

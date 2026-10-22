@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Servidor del prototipo: sin dependencias, solo Node >= 18.
 //   /            → web del público
 //   /operador    → panel del operador

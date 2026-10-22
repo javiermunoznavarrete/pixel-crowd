@@ -1,3 +1,5 @@
+// Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Genera un recinto de demostración en data/recintos/demo/ (recinto.json + asientos.csv).
 // En un recinto real, asientos.csv se reemplaza por el mapa de numeración digitalizado
 // (sector,fila,asiento,x,y en metros, con el escenario en y=0 y x=0 al centro).
