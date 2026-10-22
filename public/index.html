@@ -65,7 +65,7 @@
   <h1>Ilumina el show</h1>
   <p class="sub">Tu pantalla será parte de las luces. Toca en el mapa el sector donde estás.</p>
   <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
-  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta &nbsp; <span style="color:#c58cff">■</span> T = Tribuna</p>
+  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta &nbsp; <span style="color:#c58cff">■</span> T = Tribuna &nbsp; <span style="color:#ff3d7f">■</span> C = Cancha</p>
   <details class="mas">
     <summary>O elige tu sector de una lista</summary>
     <div class="lista" id="sectores"></div>
@@ -87,7 +87,7 @@
 <section class="paso" id="paso-zona">
   <button class="volver" data-volver>← Cambiar sector</button>
   <h2 id="titulo-zona"></h2>
-  <p class="sub">Toca la parte de la cancha donde estás.</p>
+  <p class="sub">Toca la parte de esta zona donde estás.</p>
   <div class="escenario">Escenario</div>
   <div class="grilla" id="grilla"></div>
   <div class="etiq-fila"><span>Izquierda</span><span>Centro</span><span>Derecha</span></div>
@@ -154,6 +154,7 @@
   };
   // "Platea Baja 7" → "B7", "Platea Alta 3" → "A3" (los números se repiten entre niveles)
   const etiquetaCorta = (s) => {
+    if (s.etiqueta) return s.etiqueta;
     const n = (s.nombre.match(/\d+$/) || [''])[0];
     return /baja/i.test(s.nombre) ? 'B' + n : /alta/i.test(s.nombre) ? 'A' + n : /tribuna/i.test(s.nombre) ? 'T' + n : s.nombre;
   };
@@ -197,7 +198,7 @@
       ctxMapa.font = s.rect ? '700 13px system-ui' : '700 12px system-ui';
       ctxMapa.lineWidth = 3;
       ctxMapa.strokeStyle = 'rgba(0,0,0,0.75)';
-      const txt = s.rect ? s.nombre.toUpperCase() : etiquetaCorta(s);
+      const txt = s.rect && !s.etiqueta ? s.nombre.toUpperCase() : etiquetaCorta(s);
       ctxMapa.strokeText(txt, X(c.x), Y(c.y));
       ctxMapa.fillStyle = '#fff';
       ctxMapa.fillText(txt, X(c.x), Y(c.y));

@@ -46,9 +46,15 @@
 </header>
 <div class="indicador" id="indicador"></div>
 <main>
-  <div class="caja">
-    <h2>Vista aérea</h2>
-    <canvas id="mapa"></canvas>
+  <div>
+    <div class="caja">
+      <h2>Vista aérea</h2>
+      <canvas id="mapa"></canvas>
+    </div>
+    <div class="caja" style="margin-top:16px">
+      <h2>Vista desde el escenario (cómo ve la banda a todo el público)</h2>
+      <canvas id="escena"></canvas>
+    </div>
   </div>
   <div class="caja">
     <h2>Sectores numerados vistos de frente (mosaicos)</h2>
@@ -89,7 +95,7 @@
   for (const s of recinto.sectores) {
     if (s.tipo === 'numerada') {
       for (const a of s.mapa.values()) {
-        asientos.push({ zona: s.id, x: a.x, y: a.y, pos: { zona: s.id, x: a.x, y: a.y, grid: a.grid }, sector: s, r: azar(),
+        asientos.push({ zona: s.id, x: a.x, y: a.y, pos: { zona: s.id, x: a.x, y: a.y, grid: a.grid, vista: a.vista }, sector: s, r: azar(),
           idx: indice.get(`${s.id}|${a.fila}|${a.asiento}`) });
       }
     } else {
@@ -100,7 +106,8 @@
         const puntos = [];
         for (let i = 0; i < MAX_PUNTOS_SUBZONA; i++) {
           const x = x1 + (ix + azar()) * (x2 - x1) / 3, y = y1 + (iy + azar()) * (y2 - y1) / 3;
-          puntos.push({ zona: s.id, x, y, r: azar(), pos, posReal: { zona: s.id, x, y, grid: null, rel: Show.relEnRect(s.rect, x, y) } });
+          puntos.push({ zona: s.id, x, y, r: azar(), pos,
+            posReal: { zona: s.id, x, y, grid: null, rel: Show.relEnRect(s.rectGrupo || s.rect, x, y), vista: Show.vistaEn(recinto, x, y) } });
         }
         subzonas[p.id + '-' + l.id] = puntos;
       }));
@@ -191,7 +198,21 @@
     }
   }
 
-  function ajustar() { ajustarMapa(); ajustarFrontales(); }
+  // Vista desde el escenario: cada teléfono en su posición proyectada (u: izquierda→derecha, v: arriba→abajo)
+  const escena = $('escena');
+  const ctxEscena = escena.getContext('2d');
+  let anchoEscena = 1, altoEscena = 1;
+  function ajustarEscena() {
+    const dpr = window.devicePixelRatio || 1;
+    anchoEscena = escena.clientWidth;
+    altoEscena = anchoEscena * 2 / 3; // proporción de la bandera
+    escena.style.height = altoEscena + 'px';
+    escena.width = anchoEscena * dpr;
+    escena.height = altoEscena * dpr;
+    ctxEscena.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function ajustar() { ajustarMapa(); ajustarFrontales(); ajustarEscena(); }
   window.addEventListener('resize', ajustar);
   ajustar();
 
@@ -233,9 +254,35 @@
 
     // Asientos: encendidos con su color, vacíos en gris oscuro para ver la forma del recinto
     const tam = Math.max(1.5, 0.5 * escala);
+    ctxEscena.fillStyle = '#07070b';
+    ctxEscena.fillRect(0, 0, anchoEscena, altoEscena);
+    const tamE = Math.max(1.5, anchoEscena / 220);
     for (const a of asientos) {
-      ctx.fillStyle = encendido(a, part) ? Show.css(Show.colorEn(reproductor.capa(a.zona, t), a.pos, t)) : VACIO;
+      const on = encendido(a, part);
+      const color = on ? Show.css(Show.colorEn(reproductor.capa(a.zona, t), a.pos, t)) : VACIO;
+      ctx.fillStyle = color;
       ctx.fillRect((a.x - minX) * escala, (a.y - minY) * escala, tam, tam);
+      if (on && a.pos.vista) {
+        ctxEscena.fillStyle = color;
+        ctxEscena.fillRect(a.pos.vista.u * anchoEscena, a.pos.vista.v * altoEscena, tamE, tamE);
+      }
+    }
+    // Zonas generales en la vista desde el escenario (posición declarada o real, según el modo)
+    for (const { s, subzonas } of generales) {
+      const capa = reproductor.capa(s.id, t);
+      for (const [clave, puntos] of Object.entries(subzonas)) {
+        const n = modo === 'vivo' ? Math.min(puntos.length, (ocupacion && ocupacion.generales[s.id]?.[clave]) || 0) : puntos.length;
+        for (let i = 0; i < n; i++) {
+          const p = puntos[i];
+          if (modo === 'sim' && p.r > part) continue;
+          const pos = modo === 'sim' && real ? p.posReal : p.pos;
+          if (!pos.vista) continue;
+          // Dispersión leve para que la gente de una misma subzona no quede en un solo punto
+          const ju = modo === 'sim' && real ? 0 : (p.r - 0.5) * 0.04, jv = modo === 'sim' && real ? 0 : ((p.r * 7) % 1 - 0.5) * 0.04;
+          ctxEscena.fillStyle = Show.css(Show.colorEn(capa, pos, t));
+          ctxEscena.fillRect((pos.vista.u + ju) * anchoEscena, (pos.vista.v + jv) * altoEscena, tamE, tamE);
+        }
+      }
     }
 
     for (const f of frontales) {

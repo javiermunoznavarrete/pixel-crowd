@@ -70,8 +70,82 @@
       }
     }
     recinto.porId = Object.fromEntries(recinto.sectores.map((s) => [s.id, s]));
+
+    // Zonas generales del mismo grupo (p. ej. los 4 cuadrantes de la cancha) se tratan como una sola superficie
+    const grupos = {};
+    for (const s of recinto.sectores) {
+      if (!s.rect) continue;
+      const g = s.grupo || s.id;
+      const r = grupos[g];
+      grupos[g] = r ? { x1: Math.min(r.x1, s.rect.x1), y1: Math.min(r.y1, s.rect.y1), x2: Math.max(r.x2, s.rect.x2), y2: Math.max(r.y2, s.rect.y2) } : { ...s.rect };
+    }
+    for (const s of recinto.sectores) if (s.rect) s.rectGrupo = grupos[s.grupo || s.id];
+
+    prepararVista(recinto);
     return recinto;
   }
+
+  // ---------- Vista desde el escenario ----------
+  // Para efectos que usan a todo el público como una sola imagen (p. ej. la bandera completa), cada
+  // posición se proyecta como la ve alguien en el escenario: ángulo horizontal y ángulo de elevación.
+  // La altura de cada asiento se estima por nivel y fila. Luego cada eje se reparte por cantidad de
+  // gente (cuantiles): así la mitad superior de la imagen la forma la mitad del público que se ve más arriba.
+  const OJO = { y: -3, z: 3 }; // centro del escenario, a 3 m de altura
+  const ALTURA_BASE = { 'Platea Baja': 1.5, 'Platea Alta': 9, Tribuna: 15 };
+  const SUBIDA_FILA = 0.45; // metros que sube cada fila
+  const ALTURA_CANCHA = 1.6; // teléfonos en alto en la cancha
+  const PERSONAS_M2_CANCHA = 2; // densidad estimada de gente de pie
+
+  function vistaCruda(x, y, z) {
+    const d = Math.hypot(x, y - OJO.y);
+    // u crece hacia la derecha de quien mira desde el escenario (que es la izquierda del mapa: x negativo)
+    return { u: -Math.atan2(x, y - OJO.y), v: -Math.atan2(z - OJO.z, d) };
+  }
+
+  function prepararVista(recinto) {
+    const muestras = []; // { u, v, w }
+    const conVista = []; // objetos a los que asignar .vista
+    for (const s of recinto.sectores) {
+      if (s.tipo === 'numerada') {
+        const base = ALTURA_BASE[s.nivel] ?? 2;
+        for (const a of s.mapa.values()) {
+          a.vistaCruda = vistaCruda(a.x, a.y, base + a.grid.row * SUBIDA_FILA);
+          muestras.push({ ...a.vistaCruda, w: 1 });
+          conVista.push(a);
+        }
+      } else {
+        const area = (s.rect.x2 - s.rect.x1) * (s.rect.y2 - s.rect.y1) / 9;
+        for (const c of Object.values(s.subzonas)) {
+          c.vistaCruda = vistaCruda(c.x, c.y, ALTURA_CANCHA);
+          muestras.push({ ...c.vistaCruda, w: area * PERSONAS_M2_CANCHA });
+          conVista.push(c);
+        }
+      }
+    }
+    const tabla = (eje) => {
+      const orden = muestras.map((m) => ({ val: m[eje], w: m.w })).sort((a, b) => a.val - b.val);
+      const total = orden.reduce((t, m) => t + m.w, 0);
+      let acum = 0;
+      return orden.map((m) => { const c = (acum + m.w / 2) / total; acum += m.w; return { val: m.val, c }; });
+    };
+    recinto.vista = { u: tabla('u'), v: tabla('v') };
+    for (const o of conVista) o.vista = normalizarVista(recinto, o.vistaCruda);
+  }
+
+  // Fracción del público (0..1) que queda antes de este valor en el eje
+  function cuantil(tabla, val) {
+    if (!tabla.length) return 0.5;
+    let lo = 0, hi = tabla.length - 1;
+    if (val <= tabla[0].val) return tabla[0].c;
+    if (val >= tabla[hi].val) return tabla[hi].c;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tabla[m].val <= val) lo = m; else hi = m; }
+    const a = tabla[lo], b = tabla[hi];
+    return a.c + (b.c - a.c) * ((val - a.val) / (b.val - a.val || 1));
+  }
+  const normalizarVista = (recinto, cruda) => ({ u: cuantil(recinto.vista.u, cruda.u), v: cuantil(recinto.vista.v, cruda.v) });
+
+  // Vista para una posición arbitraria (el simulador la usa para la posición real en la cancha)
+  function vistaEn(recinto, x, y, z = ALTURA_CANCHA) { return normalizarVista(recinto, vistaCruda(x, y, z)); }
 
   const PROFUNDIDADES = [
     { id: 'adelante', nombre: 'Adelante' }, { id: 'medio', nombre: 'Al medio' }, { id: 'atras', nombre: 'Atrás' },
@@ -91,13 +165,13 @@
     if (!s) return null;
     if (s.tipo === 'numerada') {
       const a = s.mapa.get(clave(ubicacion.fila, ubicacion.asiento));
-      return a ? { zona: s.id, x: a.x, y: a.y, grid: a.grid } : null;
+      return a ? { zona: s.id, x: a.x, y: a.y, grid: a.grid, vista: a.vista } : null;
     }
     const c = s.subzonas[ubicacion.profundidad + '-' + ubicacion.lado];
-    return c ? { zona: s.id, x: c.x, y: c.y, grid: null, rel: relEnRect(s.rect, c.x, c.y) } : null;
+    return c ? { zona: s.id, x: c.x, y: c.y, grid: null, rel: relEnRect(s.rectGrupo || s.rect, c.x, c.y), vista: c.vista } : null;
   }
 
-  // Posición relativa (0..1) dentro del rectángulo de una zona general, en el plano (u: izq→der, v: escenario→fondo)
+  // Posición relativa (0..1) dentro del rectángulo de una zona general (o de su grupo), en el plano (u: izq→der, v: escenario→fondo)
   function relEnRect(r, x, y) {
     return { u: (x - r.x1) / (r.x2 - r.x1), v: (y - r.y1) / (r.y2 - r.y1) };
   }
@@ -235,7 +309,10 @@
         return pixelTexto(capa, pos.grid, el, v) ? c1 : c2;
       case 'bandera': {
         let u, w;
-        if (pos.grid) { // sector numerado: la bandera ocupa toda su grilla, vista desde la cancha
+        if (capa.modo !== 'sector' && pos.vista) { // una sola bandera con todo el público, vista desde el escenario
+          u = pos.vista.u;
+          w = pos.vista.v;
+        } else if (pos.grid) { // sector numerado: la bandera ocupa toda su grilla, vista desde la cancha
           u = (pos.grid.col + 0.5) / pos.grid.cols;
           w = (pos.grid.rows - 1 - pos.grid.row + 0.5) / pos.grid.rows;
         } else if (pos.rel) { // zona general vista desde el escenario: el fondo es la parte de arriba
@@ -348,7 +425,7 @@
   const css = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
 
   window.Show = {
-    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, colorEn, css, indiceAsientos,
+    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, vistaEn, colorEn, css, indiceAsientos,
     crearReproductor, conectar, EFECTOS, PROFUNDIDADES, LADOS, MAX_HZ_ESTROBO,
   };
 })();

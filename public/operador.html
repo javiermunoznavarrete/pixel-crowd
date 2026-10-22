@@ -84,6 +84,12 @@
             <option value="45">Diagonal</option>
           </select>
         </div>
+        <div class="param" data-p="modo"><label>Bandera</label>
+          <select id="modo">
+            <option value="completa">Una con todo el público</option>
+            <option value="sector">Una por sector</option>
+          </select>
+        </div>
         <div class="param" data-p="texto"><label>Texto</label><input type="text" id="texto" maxlength="60" value="HOLA CHILE ♥"></div>
       </div>
       <button class="aplicar" id="aplicar" style="margin-top:8px">Aplicar a zonas seleccionadas</button>
@@ -135,7 +141,7 @@
   const PARAMS = {
     solido: ['color'], pulso: ['color', 'color2', 'bpm'], estrobo: ['color', 'color2', 'hz'],
     ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
-    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['velocidad'],
+    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['modo', 'velocidad'],
   };
   const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s' };
   let efecto = 'solido';
@@ -164,7 +170,7 @@
   function capaActual() {
     return {
       efecto, color: $('color').value, color2: $('color2').value, velocidad: +$('velocidad').value,
-      bpm: +$('bpm').value, hz: +$('hz').value, angulo: +$('angulo').value, texto: $('texto').value,
+      bpm: +$('bpm').value, hz: +$('hz').value, angulo: +$('angulo').value, texto: $('texto').value, modo: $('modo').value,
     };
   }
 

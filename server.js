@@ -77,6 +77,7 @@ function nuevaCapa(datos, inicio) {
     hz: num(datos.hz, 0.5, 3, 2), // estrobo limitado a 3 Hz (seguridad fotosensible)
     angulo: num(datos.angulo, -360, 360, 90),
     texto: String(datos.texto || '').slice(0, 60),
+    modo: datos.modo === 'sector' ? 'sector' : 'completa', // bandera: todo el público o una por sector
     inicio,
   };
 }

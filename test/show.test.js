@@ -88,7 +88,7 @@ test('el texto fijo dibuja letras solo en galerías numeradas', () => {
 });
 
 test('bandera de Chile en una galería: cantón azul con estrella blanca, franja blanca arriba y roja abajo', () => {
-  const capa = { id: 1, efecto: 'bandera', velocidad: 0, inicio: 0 };
+  const capa = { id: 1, efecto: 'bandera', modo: 'sector', velocidad: 0, inicio: 0 };
   const s = recinto.porId.G3;
   const color = (col, rowDesdeArriba) => {
     const a = [...s.mapa.values()].find((x) => x.grid.col === col && x.grid.rows - 1 - x.grid.row === rowDesdeArriba);
@@ -101,11 +101,38 @@ test('bandera de Chile en una galería: cantón azul con estrella blanca, franja
 });
 
 test('bandera en la cancha: vista desde el escenario, el fondo es la parte de arriba', () => {
-  const capa = { id: 1, efecto: 'bandera', velocidad: 0, inicio: 0 };
+  const capa = { id: 1, efecto: 'bandera', modo: 'sector', velocidad: 0, inicio: 0 };
   const c = (profundidad, lado) => [...Show.colorEn(capa, Show.posicionDe(recinto, { sector: 'CANCHA', profundidad, lado }), 0)].join(',');
   assert.strictEqual(c('atras', 'der'), '0,57,166'); // la derecha del público es la izquierda de quien mira desde el escenario
   assert.strictEqual(c('atras', 'izq'), '255,255,255');
   assert.strictEqual(c('adelante', 'centro'), '213,43,30');
+});
+
+test('bandera completa: todo el público forma una sola bandera, repartida por cantidad de gente', () => {
+  const capa = { id: 1, efecto: 'bandera', modo: 'completa', velocidad: 0, inicio: 0 };
+  const peso = { rojo: 0, azul: 0, blanco: 0 };
+  const sumar = (c, w) => { const k = [...c].map(Math.round).join(','); peso[k === '213,43,30' ? 'rojo' : k === '0,57,166' ? 'azul' : 'blanco'] += w; };
+  for (const s of recinto.sectores) {
+    if (s.tipo === 'numerada') for (const a of s.mapa.values()) sumar(Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid, vista: a.vista }, 0), 1);
+    else {
+      const area = (s.rect.x2 - s.rect.x1) * (s.rect.y2 - s.rect.y1) / 9;
+      for (const c of Object.values(s.subzonas)) sumar(Show.colorEn(capa, { x: c.x, y: c.y, grid: null, vista: c.vista }, 0), area * 2);
+    }
+  }
+  const total = peso.rojo + peso.azul + peso.blanco;
+  // Mitad roja, y en la mitad de arriba un tercio de cantón azul (menos la estrella)
+  assert.ok(Math.abs(peso.rojo / total - 0.5) < 0.12, `rojo ${(peso.rojo / total).toFixed(2)}`);
+  assert.ok(peso.azul / total > 0.08 && peso.azul / total < 0.2, `azul ${(peso.azul / total).toFixed(2)}`);
+});
+
+test('bandera completa: arriba la gente más alta y lejana, abajo la cancha cercana al escenario', () => {
+  const capa = { id: 1, efecto: 'bandera', modo: 'completa', velocidad: 0, inicio: 0 };
+  const cerca = Show.posicionDe(recinto, { sector: 'CANCHA', profundidad: 'adelante', lado: 'centro' });
+  assert.strictEqual([...Show.colorEn(capa, cerca, 0)].join(','), '213,43,30');
+  // Última fila de la galería del fondo: entre lo más alto que se ve desde el escenario
+  const g3 = recinto.porId.G3;
+  const arriba = [...g3.mapa.values()].find((a) => a.grid.row === g3.rows - 1 && a.grid.col === Math.floor(g3.cols / 2));
+  assert.ok(arriba.vista.v < 0.25, `v=${arriba.vista.v}`);
 });
 
 test('el glifo de zorro se dibuja en los mosaicos', () => {

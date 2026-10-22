@@ -14,8 +14,13 @@
     presets: [
       {
         nombre: 'Bandera de Chile', destacado: true,
-        descripcion: 'Una bandera en cada galería y otra en la cancha, ondeando',
-        asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', velocidad: 20 } }],
+        descripcion: 'Una sola bandera gigante con todo el público (galerías + cancha), vista desde el escenario',
+        asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'completa', velocidad: 20 } }],
+      },
+      {
+        nombre: 'Banderas por sector 🇨🇱',
+        descripcion: 'Una bandera en cada galería (vista desde la cancha) y otra en la cancha',
+        asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'sector', velocidad: 20 } }],
       },
       {
         cancion: 'BABYMETAL DEATH', nombre: 'Apertura DEATH',

@@ -55,7 +55,8 @@ Efectos disponibles: sólido, pulso (BPM), estrobo suave (**máximo 3 Hz** por s
 Cada concierto tiene su pestaña en "Escenas rápidas" del panel, definida en `public/conciertos/<concierto>.js`. Para agregar otro concierto, copia el archivo y súmalo con un `<script>` en `operador.html`.
 
 **BABYMETAL · 3 dic 2026, Movistar Arena** (`public/conciertos/babymetal.js`): presets en el orden del setlist de la gira 2026, con los colores de la banda (rojo, negro y blanco):
-- **Bandera de Chile** (destacada): una bandera en cada galería, con la estrella en el cantón, y otra en la cancha vista desde el escenario, ondeando.
+- **Bandera de Chile** (destacada): **una sola bandera gigante con todo el público**, vista desde el escenario. Cada persona se proyecta según cómo la ve la banda (ángulo horizontal y altura estimada por nivel y fila) y la bandera se reparte por cantidad de gente: la mitad que se ve más arriba forma la franja blanca y el cantón, y la de abajo la roja. El simulador tiene una "Vista desde el escenario" para revisarla.
+- **Banderas por sector**: una bandera en cada galería (vista desde la cancha) y otra en la cancha.
 - BABYMETAL DEATH → destellos rojos · Megitsune → zorros 🦊 y "KITSUNE" en mosaico · Monochrome → onda blanca lenta · METALI!! → ola roja · RATATATA → arcoíris rápido · Gimme Chocolate!! / Headbangeeeeerrrrr!!!!! → pulsos al tempo · Road of Resistance → "CHILE 🦊 BABYMETAL" en las galerías, entre otros.
 
 El orden y los BPM son una referencia: hay que ajustarlos en el ensayo y con el setlist real de Santiago. Por seguridad, ni el estrobo ni el pulso superan 3 ciclos por segundo, pida lo que pida el preset.
@@ -66,7 +67,7 @@ Cada recinto vive en `data/recintos/<nombre>/`. El servidor usa `RECINTO` (por d
 
 | Recinto | Contenido |
 |---|---|
-| `movistar-arena` | Movistar/Santander Arena para Babymetal: cancha de pie, 12 sectores de Platea Baja (B1–B12), 14 de Platea Alta (A1–A14) y Tribuna 1–2 (T1–T2), con **8.027 asientos**. |
+| `movistar-arena` | Movistar/Santander Arena para Babymetal: cancha de pie en **4 sectores de luz** (C1–C4, cada uno con su cuadrícula 3×3: 36 celdas), 12 sectores de Platea Baja (B1–B12), 14 de Platea Alta (A1–A14) y Tribuna 1–2 (T1–T2), con **8.027 asientos**. |
 | `demo` | Estadio de ejemplo (3 galerías, 3.240 asientos). Lo usan los tests. `set RECINTO=demo` para probarlo. |
 
 Archivos:
