@@ -6,7 +6,7 @@
   "fechaISO": "2026-12-03",
   "recinto": "teatro-caupolican",
   "subtitulo": "Jueves 3 dic 2026 · Teatro Caupolicán",
-  "nota": "Primer show en Chile y primera fecha de su gira latinoamericana 2026, la misma noche que BABYMETAL. Orden según sus shows de octubre 2026 (un show propio puede ser más largo). Colores del uniforme: azul marino, blanco y rojo. El Caupolicán no tiene asientos numerados: no hay mosaicos de texto. BPM aproximados.",
+  "nota": "Primer show en Chile y primera fecha de su gira latinoamericana 2026, la misma noche que BABYMETAL. Orden según sus shows de octubre 2026 (un show propio puede ser más largo). Colores del uniforme: azul marino, blanco y rojo. El Caupolicán no tiene asientos numerados: no hay mosaicos de texto. BPM aproximados: ajustar en el ensayo (en especial el remix de Pineapple Kryptonite, que no tiene BPM publicado).",
   "fuente": "Setlists de octubre 2026 en setlist.fm (Fukushima 18/10, Nagasaki 17/10) y shows propios de 2026 (Toryanse, Arigato, Free Your Mind). Ajustar con el setlist real de Santiago.",
   "presets": [
     {
@@ -61,9 +61,14 @@
       "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "onda", "color": "#ffd400", "color2": "#1a0a00", "velocidad": 18 } }]
     },
     {
-      "cancion": "Pineapple Kryptonite", "nombre": "Piña",
-      "descripcion": "Ola amarilla sobre verde, por los lentes de piña",
-      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#ffd400", "color2": "#0f5c2a", "velocidad": 22, "angulo": 45 } }]
+      "cancion": "Pineapple Kryptonite (remix)", "nombre": "Piña rave",
+      "descripcion": "Remix de Yohji Igarashi (techno industrial): golpe amarillo piña sobre negro a cada bombo, ~145 BPM",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#ffd400", "color2": "#000000", "bpm": 145 } }]
+    },
+    {
+      "cancion": "Pineapple Kryptonite (remix)", "nombre": "Drop hardstyle",
+      "descripcion": "Para la parte hardstyle: estrobo amarillo y verde al máximo permitido (3 Hz)",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "estrobo", "color": "#ffd400", "color2": "#0f5c2a", "hz": 3 } }]
     },
     {
       "cancion": "Fly High", "nombre": "Despegue",
