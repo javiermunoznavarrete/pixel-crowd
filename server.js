@@ -9,9 +9,34 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
-const OP_TOKEN = process.env.OP_TOKEN || ''; // si se define, el panel debe enviarlo
+// ---------- Clave del administrador ----------
+// Se toma de CLAVE_ADMIN (u OP_TOKEN, nombre anterior) o del archivo local clave-admin.txt, que no se
+// sube a git. Sin clave, el panel queda abierto (solo para pruebas).
+function leerClave() {
+  if (process.env.CLAVE_ADMIN || process.env.OP_TOKEN) return process.env.CLAVE_ADMIN || process.env.OP_TOKEN;
+  try { return fs.readFileSync(path.join(__dirname, 'clave-admin.txt'), 'utf8').trim(); } catch { return ''; }
+}
+const CLAVE_ADMIN = leerClave();
+const huella = (texto) => crypto.createHash('sha256').update(String(texto)).digest();
+const HUELLA_CLAVE = CLAVE_ADMIN ? huella(CLAVE_ADMIN) : null;
+const DURACION_SESION = 12 * 60 * 60 * 1000;
+const MAX_INTENTOS = 5; // intentos fallidos seguidos antes de bloquear esa IP un minuto
+const sesiones = new Map(); // token → vencimiento
+const intentos = new Map(); // ip → { fallidos, bloqueadoHasta }
+
+// Comparación en tiempo constante (sobre huellas del mismo largo) para no filtrar la clave por tiempos
+const claveCorrecta = (clave) => !!HUELLA_CLAVE && crypto.timingSafeEqual(huella(clave), HUELLA_CLAVE);
+
+function sesionValida(token) {
+  if (!CLAVE_ADMIN) return true;
+  const vence = token && sesiones.get(token);
+  if (!vence) return false;
+  if (vence < Date.now()) { sesiones.delete(token); return false; }
+  return true;
+}
 const PUBLIC = path.join(__dirname, 'public');
 // Recinto a usar: carpeta dentro de data/recintos/ (movistar-arena por defecto, demo para pruebas)
 const RECINTO = process.env.RECINTO || 'movistar-arena';
@@ -177,9 +202,32 @@ function leerCuerpo(req, limite = 64 * 1024) {
   });
 }
 
+// POST /api/login { clave } → { sesion, vence }
+async function iniciarSesion(req, res) {
+  if (!CLAVE_ADMIN) return json(res, 200, { sesion: 'abierta', abierto: true });
+  const ip = req.socket.remoteAddress;
+  const i = intentos.get(ip) || { fallidos: 0, bloqueadoHasta: 0 };
+  if (i.bloqueadoHasta > Date.now()) {
+    return json(res, 429, { error: `Demasiados intentos. Espera ${Math.ceil((i.bloqueadoHasta - Date.now()) / 1000)} s.` });
+  }
+  let datos;
+  try { datos = JSON.parse(await leerCuerpo(req, 2048)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
+  if (!claveCorrecta(datos.clave || '')) {
+    i.fallidos++;
+    if (i.fallidos >= MAX_INTENTOS) { i.fallidos = 0; i.bloqueadoHasta = Date.now() + 60 * 1000; }
+    intentos.set(ip, i);
+    return json(res, 401, { error: 'Clave incorrecta' });
+  }
+  intentos.delete(ip);
+  const sesion = crypto.randomBytes(24).toString('hex');
+  const vence = Date.now() + DURACION_SESION;
+  sesiones.set(sesion, vence);
+  json(res, 200, { sesion, vence });
+}
+
 // POST /api/escena  { asignaciones: [{ zonas: ['G1'] | 'todas', capa: {...} }], adelantoMs }
 async function aplicarEscena(req, res) {
-  if (OP_TOKEN && req.headers['x-token'] !== OP_TOKEN) return json(res, 401, { error: 'token inválido' });
+  if (!sesionValida(req.headers['x-sesion'])) return json(res, 401, { error: 'Sesión inválida o vencida: vuelve a ingresar la clave' });
   let datos;
   try { datos = JSON.parse(await leerCuerpo(req)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
   if (!Array.isArray(datos.asignaciones)) return json(res, 400, { error: 'faltan asignaciones' });
@@ -197,6 +245,11 @@ async function aplicarEscena(req, res) {
 }
 
 function eventos(req, res, url) {
+  const rol = url.searchParams.get('rol') || 'publico';
+  // El operador y el simulador ven conteos y ocupación: requieren sesión
+  if (OBSERVADORES.has(rol) && !sesionValida(url.searchParams.get('sesion'))) {
+    return json(res, 401, { error: 'Sesión inválida o vencida' });
+  }
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-store',
@@ -204,7 +257,7 @@ function eventos(req, res, url) {
     'X-Accel-Buffering': 'no',
   });
   res.write('retry: 2000\n\n');
-  const cliente = { res, rol: url.searchParams.get('rol') || 'publico', zona: url.searchParams.get('zona') };
+  const cliente = { res, rol, zona: url.searchParams.get('zona') };
   if (cliente.rol === 'publico') cliente.ubicacion = ubicacionDe(url.searchParams);
   clientes.add(cliente);
   enviar(res, 'estado', estado);
@@ -235,6 +288,9 @@ const servidor = http.createServer((req, res) => {
     return json(res, 200, { urls });
   }
   if (p === '/api/escena' && req.method === 'POST') return aplicarEscena(req, res);
+  if (p === '/api/login' && req.method === 'POST') return iniciarSesion(req, res);
+  if (p === '/api/sesion') return json(res, 200, { requiereClave: !!CLAVE_ADMIN, valida: sesionValida(req.headers['x-sesion']) });
+  if (p === '/api/logout' && req.method === 'POST') { sesiones.delete(req.headers['x-sesion']); return json(res, 200, { ok: true }); }
   if (RUTAS[p]) return estatico(res, RUTAS[p]);
   return estatico(res, p.slice(1));
 });
@@ -248,7 +304,8 @@ servidor.on('error', (err) => {
 servidor.listen(PORT, '0.0.0.0', () => {
   const ips = ipsLocales();
   console.log(`\nPixel Crowd — ${recinto.nombre}\n`);
-  console.log(`  Operador (en este PC):   http://localhost:${PORT}/operador${OP_TOKEN ? '  (requiere OP_TOKEN)' : ''}`);
+  console.log(`  Operador (en este PC):   http://localhost:${PORT}/operador${CLAVE_ADMIN ? '  (protegido con clave)' : ''}`);
+  if (!CLAVE_ADMIN) console.log('  ATENCIÓN: el panel no tiene clave. Crea clave-admin.txt o define CLAVE_ADMIN.');
   console.log(`  QR para el público:      http://localhost:${PORT}/conectar`);
   console.log(`  Simulador:               http://localhost:${PORT}/simulador\n`);
   if (ips.length) {

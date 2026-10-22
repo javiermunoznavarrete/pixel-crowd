@@ -38,7 +38,15 @@ npm start            # o: node server.js   (Node 18+; sin dependencias)
 | Simulador del estadio | `http://localhost:3000/simulador` |
 
 Para probar con teléfonos reales, deben estar en la misma red WiFi que el PC. El servidor imprime la IP al arrancar.
-Variables: `PORT` (por defecto 3000), `OP_TOKEN` (si se define, el panel debe enviar ese token), `URL_PUBLICO` (fuerza la URL del QR) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
+Variables: `PORT` (por defecto 3000), `CLAVE_ADMIN` (clave del panel; tiene prioridad sobre `clave-admin.txt`), `URL_PUBLICO` (fuerza la URL del QR) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
+
+### Clave del administrador
+El panel del operador y el simulador piden clave. Las páginas del público no.
+- La clave se lee de **`clave-admin.txt`** en la raíz del proyecto, un archivo local que **no se sube a git**, o de la variable `CLAVE_ADMIN`. Para cambiarla, edita ese archivo y reinicia el servidor.
+- Al ingresar, el servidor entrega una **sesión de 12 horas**. La clave no viaja en cada acción. Si el servidor se reinicia, el panel vuelve a pedir la clave.
+- Tras **5 intentos fallidos** seguidos, esa IP queda bloqueada un minuto.
+- Sin `clave-admin.txt` ni `CLAVE_ADMIN`, el panel queda abierto (solo para pruebas) y el servidor lo advierte al arrancar.
+- En la red local se usa `http://`, sin cifrado: alguien conectado a la misma WiFi podría capturar la clave. En producción hay que usar HTTPS.
 
 Librerías incluidas en `public/vendor/` (se sirven desde el PC, funcionan sin internet): NoSleep.js 0.12.0 y qrcode-generator 1.4.4, ambas con licencia MIT.
 

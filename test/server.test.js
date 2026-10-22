@@ -11,16 +11,23 @@ const BASE = `http://localhost:${PORT}`;
 let proc;
 
 test.before(async () => {
-  proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, OP_TOKEN: 'secreto', RECINTO: 'demo' } });
+  proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, CLAVE_ADMIN: 'secreto', RECINTO: 'demo' } });
   await new Promise((resolve, reject) => {
     proc.stdout.on('data', (d) => String(d).includes('Ctrl+C') && resolve());
     proc.on('exit', (c) => reject(new Error('el servidor terminó con código ' + c)));
   });
+  // Sesión del administrador para los tests que la necesitan (login está definido más abajo)
+  SESION = (await (await login('secreto')).json()).sesion;
 });
 test.after(() => proc.kill());
 
-const escena = (cuerpo, token = 'secreto') => fetch(BASE + '/api/escena', {
-  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-token': token }, body: JSON.stringify(cuerpo),
+const login = (clave) => fetch(BASE + '/api/login', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave }),
+});
+let SESION = '';
+
+const escena = (cuerpo, sesion = SESION) => fetch(BASE + '/api/escena', {
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-sesion': sesion }, body: JSON.stringify(cuerpo),
 });
 
 // Abre un stream SSE y devuelve los eventos recibidos a medida que llegan.
@@ -54,8 +61,28 @@ test('no sirve archivos fuera de public/', async () => {
   assert.notStrictEqual(r.status, 200);
 });
 
-test('rechaza escenas sin token', async () => {
-  assert.strictEqual((await escena({ asignaciones: [] }, 'malo')).status, 401);
+test('rechaza escenas sin sesión o con una sesión inventada', async () => {
+  assert.strictEqual((await escena({ asignaciones: [] }, '')).status, 401);
+  assert.strictEqual((await escena({ asignaciones: [] }, 'inventada')).status, 401);
+});
+
+test('login: clave incorrecta 401, correcta entrega sesión válida; cerrar sesión la invalida', async () => {
+  assert.strictEqual((await login('Concierto2025')).status, 401);
+  const r = await login('secreto');
+  assert.strictEqual(r.status, 200);
+  const { sesion } = await r.json();
+  assert.match(sesion, /^[0-9a-f]{48}$/);
+  const estado = async () => (await fetch(BASE + '/api/sesion', { headers: { 'x-sesion': sesion } })).json();
+  assert.deepStrictEqual(await estado(), { requiereClave: true, valida: true });
+  await fetch(BASE + '/api/logout', { method: 'POST', headers: { 'x-sesion': sesion } });
+  assert.strictEqual((await estado()).valida, false);
+});
+
+test('el panel y el simulador no reciben datos sin sesión', async () => {
+  for (const rol of ['operador', 'simulador']) {
+    const r = await fetch(BASE + '/api/events?rol=' + rol);
+    assert.strictEqual(r.status, 401, rol);
+  }
 });
 
 test('una escena llega por SSE solo a las zonas indicadas, programada en el futuro', async () => {
@@ -94,7 +121,7 @@ test('el operador recibe la ocupación real: asiento declarado y subzona de canc
   const tel2 = abrirSSE('rol=publico&zona=CANCHA&profundidad=adelante&lado=izq');
   const tel3 = abrirSSE('rol=publico&zona=G1&fila=Z&asiento=999'); // asiento inexistente: no cuenta
   await esperar(300);
-  const op = abrirSSE('rol=operador');
+  const op = abrirSSE('rol=operador&sesion=' + SESION);
   await esperar(300);
   tel1.cerrar(); tel2.cerrar(); tel3.cerrar(); op.cerrar();
   const o = op.eventos.filter((e) => e.evento === 'ocupacion').at(-1).datos;
@@ -107,9 +134,16 @@ test('el operador recibe la ocupación real: asiento declarado y subzona de canc
 
 test('el operador recibe el conteo de teléfonos por zona', async () => {
   const tel = abrirSSE('rol=publico&zona=G3');
-  const op = abrirSSE('rol=operador');
+  const op = abrirSSE('rol=operador&sesion=' + SESION);
   await esperar(300);
   const stats = op.eventos.filter((e) => e.evento === 'stats').at(-1).datos;
   tel.cerrar(); op.cerrar();
   assert.ok(stats.porZona.G3 >= 1);
+});
+
+// Al final: deja la IP bloqueada un minuto
+test('bloquea la IP un minuto tras 5 claves incorrectas seguidas', async () => {
+  for (let i = 0; i < 5; i++) await login('mala' + i);
+  const r = await login('secreto'); // incluso con la clave correcta, mientras dure el bloqueo
+  assert.strictEqual(r.status, 429);
 });

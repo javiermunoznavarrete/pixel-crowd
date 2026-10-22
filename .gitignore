@@ -1,2 +1,4 @@
 node_modules/
 .claude/
+# Clave del panel del operador (local, nunca al repositorio)
+clave-admin.txt

@@ -45,6 +45,13 @@
   .tabs button.sel { background: #e60012; border-color: #e60012; color: #fff; font-weight: 700; }
   .info-concierto { font-size: 12px; color: var(--suave); margin-bottom: 10px; line-height: 1.5; }
   .info-concierto strong { color: var(--texto); }
+  .login { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .login[hidden] { display: none; }
+  .login form { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 10px; }
+  .login h1 { font-size: 22px; margin: 0 0 8px; }
+  .login label { color: var(--suave); font-size: 13px; }
+  .login input[type=password] { padding: 12px; font: inherit; font-size: 16px; color: var(--texto); background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; }
+  .login-error { color: #ff7a8a; min-height: 18px; margin: 0; font-size: 13px; }
   .pie { font-size: 11px; color: var(--suave); line-height: 1.6; padding: 8px 2px 4px; }
   .pie a { color: inherit; }
   .ajustes .param { grid-template-columns: 110px 1fr; }
@@ -118,7 +125,7 @@
     <section class="ajustes" data-plegable="ajustes" data-plegado-movil>
       <h2>Ajustes</h2>
       <div class="param"><label>Adelanto (ms)</label><input type="text" id="adelanto" value="300" inputmode="numeric"></div>
-      <div class="param"><label>Token</label><input type="text" id="token" placeholder="solo si el servidor usa OP_TOKEN"></div>
+      <button class="chip" id="salir" type="button">Cerrar sesión</button>
     </section>
 
     <footer class="pie">
@@ -129,16 +136,58 @@
 
   <div class="vista" data-plegable="vista">
     <h2>Vista previa del estadio</h2>
-    <iframe src="/simulador?embed" title="Vista previa del estadio"></iframe>
+    <iframe title="Vista previa del estadio"></iframe>
   </div>
 </div>
 
+<div class="login" id="login" hidden>
+  <form id="form-login" autocomplete="on">
+    <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
+    <h1>Panel del operador</h1>
+    <input type="text" name="username" value="admin" autocomplete="username" hidden>
+    <label for="login-clave">Clave de administrador</label>
+    <input type="password" id="login-clave" autocomplete="current-password" required>
+    <button class="aplicar" id="login-entrar" type="submit">Entrar</button>
+    <p class="login-error" id="login-error" role="alert"></p>
+  </form>
+</div>
+
 <script src="/plegables.js"></script>
+<script src="/sesion.js"></script>
 <script src="/show.js"></script>
 <script src="/conciertos/babymetal.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
+
+  // ---- Clave del administrador ----
+  // Muestra la pantalla de ingreso y espera una clave correcta
+  function pedirClave(mensaje) {
+    return new Promise((resolve) => {
+      $('login').hidden = false;
+      $('login-error').textContent = mensaje || '';
+      $('login-clave').value = '';
+      $('login-clave').focus();
+      $('form-login').onsubmit = async (e) => {
+        e.preventDefault();
+        $('login-entrar').disabled = true;
+        try {
+          await Sesion.ingresar($('login-clave').value);
+          $('login').hidden = true;
+          resolve();
+        } catch (err) {
+          $('login-error').textContent = err.message;
+          $('login-clave').select();
+        } finally {
+          $('login-entrar').disabled = false;
+        }
+      };
+    });
+  }
+  if ((await Sesion.verificar()) !== true) await pedirClave();
+  document.querySelector('.vista iframe').src = '/simulador?embed';
+  $('salir').onclick = async () => { await Sesion.salir(); location.reload(); };
+
   const recinto = await Show.cargarRecinto();
 
   // ---- Zonas ----
@@ -194,17 +243,20 @@
   }
 
   // ---- Envío ----
-  try { $('token').value = localStorage.getItem('op-token') || ''; } catch (e) {}
-  $('token').onchange = () => { try { localStorage.setItem('op-token', $('token').value); } catch (e) {} };
-
-  async function enviar(asignaciones, etiqueta) {
+  async function enviar(asignaciones, etiqueta, reintento = false) {
     try {
       const r = await fetch('/api/escena', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-token': $('token').value },
+        headers: { 'Content-Type': 'application/json', 'x-sesion': Sesion.get() },
         body: JSON.stringify({ asignaciones, adelantoMs: +$('adelanto').value || 300 }),
       });
       const d = await r.json();
+      if (r.status === 401 && !reintento) {
+        // Sesión vencida (o servidor reiniciado): pedir la clave y reenviar la misma escena una vez
+        Sesion.borrar();
+        await pedirClave('La sesión venció. Ingresa la clave de nuevo.');
+        return enviar(asignaciones, etiqueta, true);
+      }
       $('msg').textContent = r.ok ? `✓ ${etiqueta}` : `✗ ${d.error}`;
     } catch (e) {
       $('msg').textContent = '✗ Sin conexión con el servidor';
@@ -279,8 +331,10 @@
   mostrarPestana(pestanaInicial);
 
   // ---- Conexión y conteos ----
+  let revisandoSesion = false;
   Show.conectar({
     rol: 'operador',
+    sesion: Sesion.get(),
     alStats: (s) => {
       $('total').textContent = s.publico;
       for (const [z, n] of Object.entries(s.porZona)) {
@@ -292,9 +346,19 @@
           ? `${n} · ${Math.round(100 * n / sector.asientos.length)}%` : n;
       }
     },
-    alConexion: (ok) => {
+    alConexion: async (ok) => {
       $('punto').classList.toggle('ok', ok);
       $('con').textContent = ok ? 'En vivo' : 'Reconectando…';
+      // Si el servidor se reinició o la sesión venció, la reconexión no prospera: pedir la clave y recargar
+      if (!ok && !revisandoSesion) {
+        revisandoSesion = true;
+        if ((await Sesion.verificar()) === false) {
+          Sesion.borrar();
+          await pedirClave('La sesión venció o el servidor se reinició. Ingresa la clave de nuevo.');
+          location.reload();
+        }
+        revisandoSesion = false;
+      }
     },
   });
 })();

@@ -64,11 +64,18 @@
 </main>
 
 <script src="/plegables.js"></script>
+<script src="/sesion.js"></script>
 <script src="/show.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
   if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embed');
+
+  // El simulador muestra la ocupación real: requiere la sesión del administrador
+  if ((await Sesion.verificar()) !== true) {
+    $('indicador').innerHTML = '<span class="dato">Ingresa la clave en el <a href="/operador" style="color:inherit"><b>panel del operador</b></a> y recarga esta página.</span>';
+    return;
+  }
 
   const recinto = await Show.cargarRecinto();
   const reproductor = Show.crearReproductor();
@@ -80,6 +87,7 @@
   setInterval(Show.sincronizarReloj, 30000);
   Show.conectar({
     rol: 'simulador',
+    sesion: Sesion.get(),
     alEstado: (e) => reproductor.actualizar(e),
     alOcupacion: (o) => { ocupacion = o; actualizarIndicador(); },
   });

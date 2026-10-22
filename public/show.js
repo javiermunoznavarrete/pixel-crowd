@@ -413,9 +413,11 @@
   }
 
   // ubicacion (solo público): se informa al servidor para mostrar la ocupación real en el panel
-  function conectar({ rol, zona, ubicacion, alEstado, alStats, alOcupacion, alConexion }) {
+  // sesion (operador/simulador): token entregado por /api/login
+  function conectar({ rol, zona, ubicacion, sesion, alEstado, alStats, alOcupacion, alConexion }) {
     const q = new URLSearchParams({ rol });
     if (zona) q.set('zona', zona);
+    if (sesion) q.set('sesion', sesion);
     if (ubicacion) {
       for (const k of ['fila', 'asiento', 'profundidad', 'lado']) if (ubicacion[k] !== undefined) q.set(k, ubicacion[k]);
     }
