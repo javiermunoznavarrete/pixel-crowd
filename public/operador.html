@@ -141,9 +141,9 @@
   const PARAMS = {
     solido: ['color'], pulso: ['color', 'color2', 'bpm'], estrobo: ['color', 'color2', 'hz'],
     ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
-    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['modo', 'velocidad'],
+    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['modo', 'velocidad'], tela: ['color', 'color2', 'modo', 'velocidad'],
   };
-  const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s', bandera: 'viento' };
+  const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s', bandera: 'viento', tela: 'viento' };
   let efecto = 'solido';
   for (const [id, nombre] of Object.entries(Show.EFECTOS)) {
     const b = document.createElement('button');
@@ -214,6 +214,7 @@
       { zonas: generales, capa: { efecto: 'pulso', color: '#c4002b', color2: '#200006', bpm: 90 } },
     ]],
     ['Arcoíris', () => [{ zonas: 'todas', capa: { efecto: 'arcoiris', velocidad: 25, angulo: 0 } }]],
+    ['Tela al viento (color elegido)', () => [{ zonas: 'todas', capa: { efecto: 'tela', modo: 'completa', color: $('color').value, color2: '#000000', velocidad: 30 } }]],
     ['Latido rojo', () => [{ zonas: 'todas', capa: { efecto: 'pulso', color: '#ff0033', color2: '#000000', bpm: 70 } }]],
     ['Estrobo blanco', () => [{ zonas: 'todas', capa: { efecto: 'estrobo', color: '#ffffff', color2: '#000000', hz: 2 } }]],
     ['Apagón', () => [{ zonas: 'todas', capa: { efecto: 'solido', color: '#000000' } }]],

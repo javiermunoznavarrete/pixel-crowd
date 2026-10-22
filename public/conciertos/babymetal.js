@@ -23,6 +23,11 @@
         asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'completa', velocidad: 40 } }],
       },
       {
+        nombre: 'Tela roja BABYMETAL',
+        descripcion: 'Una gran tela roja flameando con todo el público: solo tonos de rojo',
+        asignaciones: [{ zonas: 'todas', capa: { efecto: 'tela', modo: 'completa', color: ROJO, color2: NEGRO, velocidad: 30 } }],
+      },
+      {
         nombre: 'Banderas por sector 🇨🇱',
         descripcion: 'Una bandera en cada galería (vista desde la cancha) y otra en la cancha',
         asignaciones: [{ zonas: 'todas', capa: { efecto: 'bandera', modo: 'sector', velocidad: 20 } }],

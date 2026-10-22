@@ -158,6 +158,28 @@ test('bandera flameando: el asta queda fija, la tela ondula y nadie parpadea má
   assert.ok(cambios <= 6, `cambios ${cambios}`);
 });
 
+test('tela al viento: solo tonos del color elegido, con valles oscuros y crestas claras', () => {
+  const capa = { id: 1, efecto: 'tela', modo: 'completa', color: '#e60012', color2: '#000000', velocidad: 30, inicio: 0 };
+  const s = recinto.porId.G2;
+  let min = 1, max = 0, tonos = 0;
+  for (const a of s.mapa.values()) {
+    const [r, g, b] = [...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid, vista: a.vista }, 1234)];
+    if (r === 0 && g === 0 && b === 0) continue; // borde fuera de la tela
+    tonos++;
+    // Siempre el mismo matiz: el rojo domina; el brillo de las crestas solo aclara un poco (sin volverse blanco)
+    assert.ok(r >= g && r >= b && r - Math.max(g, b) > 40, `tono ${r},${g},${b}`);
+    min = Math.min(min, r / 230); max = Math.max(max, r / 230);
+  }
+  assert.ok(tonos > 100);
+  assert.ok(max - min > 0.4, `contraste entre valles y crestas ${min.toFixed(2)}–${max.toFixed(2)}`);
+});
+
+test('tela quieta (viento 0): color pleno y parejo', () => {
+  const capa = { id: 1, efecto: 'tela', modo: 'sector', color: '#2d7bff', velocidad: 0, inicio: 0 };
+  const a = [...recinto.porId.G1.mapa.values()][50];
+  assert.strictEqual([...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid, vista: a.vista }, 5000)].map(Math.round).join(','), '45,123,255');
+});
+
 test('el glifo de zorro se dibuja en los mosaicos', () => {
   const capa = { id: 1, efecto: 'texto', color: '#ffffff', color2: '#000000', velocidad: 0, texto: '🦊', inicio: 0 };
   let encendidos = 0;

@@ -220,7 +220,7 @@
   // ---------- Efectos ----------
   const EFECTOS = {
     solido: 'Sólido', pulso: 'Pulso', estrobo: 'Estrobo suave', ola: 'Ola',
-    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)', bandera: 'Bandera de Chile',
+    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)', bandera: 'Bandera de Chile', tela: 'Tela al viento',
   };
 
   // ---------- Bandera de Chile ----------
@@ -308,40 +308,56 @@
       case 'texto':
         return pixelTexto(capa, pos.grid, el, v) ? c1 : c2;
       case 'bandera': {
-        let u, w;
-        let estrella = !!pos.grid;
-        if (capa.modo !== 'sector' && pos.vista) { // una sola bandera con todo el público, vista desde el escenario
-          u = pos.vista.u;
-          w = pos.vista.v;
-          estrella = false; // a esta escala la estrella queda deforme: el cantón va azul liso
-        } else if (pos.grid) { // sector numerado: la bandera ocupa toda su grilla, vista desde la cancha
-          u = (pos.grid.col + 0.5) / pos.grid.cols;
-          w = (pos.grid.rows - 1 - pos.grid.row + 0.5) / pos.grid.rows;
-        } else if (pos.rel) { // zona general vista desde el escenario: el fondo es la parte de arriba
-          u = 1 - pos.rel.u;
-          w = 1 - pos.rel.v;
-        } else return BLANCO;
-        // Flameo como tela al viento (velocidad = fuerza del viento; 0 = quieta). Las ondas nacen en el asta
-        // (u = 0, lado del cantón) y viajan hacia la punta; el asta no se mueve y la amplitud crece hacia la punta.
-        let k = 1;
-        if (v > 0) {
-          const viento = v / 20; // 20 = brisa normal
-          const fase = 2 * Math.PI * (u * 1.6 - el * 0.6 * viento) + w * 1.8; // pliegues algo diagonales
-          const amp = 0.07 * Math.min(1.5, viento) * u;
-          const w2 = w + amp * Math.sin(fase);
-          const u2 = u - 0.03 * u * (1 - Math.cos(fase)); // la punta se recoge en cada pliegue
-          // Fuera de la tela (bordes que flamean): apagado
-          if (w2 < 0 || w2 > 1 || u2 > 1) return [0, 0, 0];
-          u = u2;
-          w = w2;
-          k = 0.6 + 0.4 * (0.5 + 0.5 * Math.cos(fase - 0.9)); // luz en las crestas, sombra en los valles
-        }
-        const [r, g, b] = colorBandera(u, w, estrella);
+        const c = coordsTela(capa, pos);
+        if (!c) return BLANCO;
+        const f = flameo(c.u, c.w, el, v);
+        if (!f) return [0, 0, 0]; // fuera de la tela (bordes que flamean): apagado
+        const k = 0.6 + 0.4 * f.luz; // luz en las crestas, sombra en los valles
+        const [r, g, b] = colorBandera(f.u, f.w, c.estrella);
         return [r * k, g * k, b * k];
+      }
+      case 'tela': {
+        // Tela de un solo color: el flameo se ve solo con tonos del mismo color (oscuro en los valles,
+        // pleno en las crestas, con un leve brillo hacia el blanco como el satín)
+        const c = coordsTela(capa, pos);
+        if (!c) return c1;
+        const f = flameo(c.u, c.w, el, v);
+        if (!f) return c2;
+        const k = 0.35 + 0.65 * f.luz;
+        const brillo = v > 0 ? 0.3 * Math.pow(f.luz, 6) : 0; // sin viento no hay pliegues ni brillo
+        return mezcla([c1[0] * k, c1[1] * k, c1[2] * k], BLANCO, brillo);
       }
       default:
         return [0, 0, 0];
     }
+  }
+
+  // Coordenadas (u: 0 = asta/izquierda → 1 = punta; w: 0 = arriba → 1 = abajo) de una posición dentro de una
+  // tela o bandera. modo 'completa': una sola tela con todo el público, vista desde el escenario;
+  // modo 'sector': una por sector numerado (vista desde la cancha) y una para las zonas generales.
+  function coordsTela(capa, pos) {
+    if (capa.modo !== 'sector' && pos.vista) {
+      return { u: pos.vista.u, w: pos.vista.v, estrella: false }; // a esta escala la estrella queda deforme
+    }
+    if (pos.grid) {
+      return { u: (pos.grid.col + 0.5) / pos.grid.cols, w: (pos.grid.rows - 1 - pos.grid.row + 0.5) / pos.grid.rows, estrella: true };
+    }
+    if (pos.rel) return { u: 1 - pos.rel.u, w: 1 - pos.rel.v, estrella: false }; // vista desde el escenario: el fondo va arriba
+    return null;
+  }
+
+  // Flameo como tela al viento (velocidad = fuerza del viento; 0 = quieta). Las ondas nacen en el asta
+  // (u = 0) y viajan hacia la punta; el asta no se mueve y la amplitud crece hacia la punta.
+  // Devuelve la posición desplazada y la luz (0 = valle, 1 = cresta), o null si ese punto quedó fuera de la tela.
+  function flameo(u, w, el, velocidad) {
+    if (!(velocidad > 0)) return { u, w, luz: 1 };
+    const viento = velocidad / 20; // 20 = brisa normal
+    const fase = 2 * Math.PI * (u * 1.6 - el * 0.6 * viento) + w * 1.8; // pliegues algo diagonales
+    const amp = 0.07 * Math.min(1.5, viento) * u;
+    const w2 = w + amp * Math.sin(fase);
+    const u2 = u - 0.03 * u * (1 - Math.cos(fase)); // la punta se recoge en cada pliegue
+    if (w2 < 0 || w2 > 1 || u2 > 1) return null;
+    return { u: u2, w: w2, luz: 0.5 + 0.5 * Math.cos(fase - 0.9) };
   }
 
   // ¿El asiento queda dentro de una letra? Solo aplica a sectores numerados (con grilla).

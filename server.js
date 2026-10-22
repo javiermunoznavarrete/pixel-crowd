@@ -61,7 +61,7 @@ function ubicacionDe(params) {
 }
 
 // ---------- Estado del show ----------
-const EFECTOS = ['solido', 'pulso', 'estrobo', 'ola', 'onda', 'arcoiris', 'texto', 'bandera'];
+const EFECTOS = ['solido', 'pulso', 'estrobo', 'ola', 'onda', 'arcoiris', 'texto', 'bandera', 'tela'];
 let contadorCapas = 0;
 
 function nuevaCapa(datos, inicio) {
@@ -77,7 +77,7 @@ function nuevaCapa(datos, inicio) {
     hz: num(datos.hz, 0.5, 3, 2), // estrobo limitado a 3 Hz (seguridad fotosensible)
     angulo: num(datos.angulo, -360, 360, 90),
     texto: String(datos.texto || '').slice(0, 60),
-    modo: datos.modo === 'sector' ? 'sector' : 'completa', // bandera: todo el público o una por sector
+    modo: datos.modo === 'sector' ? 'sector' : 'completa', // bandera/tela: todo el público o una por sector
     inicio,
   };
 }
