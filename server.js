@@ -557,11 +557,16 @@ function apiEvento(ev, accion, req, res, url) {
   }
 }
 
+// Google Analytics 4 (opcional): ID de medición "G-…" en la variable GA4_ID. Sin ella, analitica.js no
+// carga nada de Google.
+const GA4_ID = /^G-[A-Z0-9]+$/.test(process.env.GA4_ID || '') ? process.env.GA4_ID : '';
+
 function estatico(res, archivo) {
   const ruta = path.join(PUBLIC, archivo);
   if (!ruta.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(ruta, (err, contenido) => {
     if (err) { res.writeHead(404); return res.end('No encontrado'); }
+    if (archivo === 'analitica.js') contenido = String(contenido).replace('__GA4_ID__', GA4_ID);
     res.writeHead(200, { 'Content-Type': TIPOS[path.extname(ruta)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(contenido);
   });
@@ -625,6 +630,7 @@ servidor.listen(PORT, '0.0.0.0', () => {
     console.log(`    Operador:  http://localhost:${PORT}/${ev.slug}/operador${requiereClave(ev) ? '  (con clave)' : ''}`);
     console.log(`    QR:        http://localhost:${PORT}/${ev.slug}/conectar\n`);
   }
+  console.log(GA4_ID ? `  Google Analytics 4: ${GA4_ID}\n` : '  Google Analytics 4: desactivado (define GA4_ID para activarlo)\n');
   if (!CLAVE_ADMIN) console.log('  ATENCIÓN: no hay clave general. Crea clave-admin.txt o define CLAVE_ADMIN.\n');
   if (!ips.length) console.log('  No se detectó una red local. Conecta el PC a la WiFi y reinicia.\n');
   console.log('  Ctrl+C para detener.\n');

@@ -18,7 +18,7 @@ let proc;
 test.before(async () => {
   proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
     env: {
-      ...process.env, PORT, CLAVE_ADMIN: 'secreto', CLAVE_EVENTO_PRUEBA_B: 'clave-b', URL_PUBLICO: 'https://ejemplo.cl',
+      ...process.env, PORT, CLAVE_ADMIN: 'secreto', GA4_ID: 'G-PRUEBA123', CLAVE_EVENTO_PRUEBA_B: 'clave-b', URL_PUBLICO: 'https://ejemplo.cl',
       EVENTOS_DIR: path.join(__dirname, 'fixtures', 'eventos'),
       RECINTOS_DIR: path.join(__dirname, '..', 'data', 'recintos'),
       DATA_APORTES: DIR_APORTES,
@@ -71,6 +71,13 @@ test('sirve la lista de eventos, las páginas de cada evento y su recinto', asyn
   }
   const recinto = await (await fetch(BASE + '/api/e/prueba-a/recinto')).json();
   assert.strictEqual(recinto.sectores.find((s) => s.id === 'G1').asientos.length, 12 * 85);
+});
+
+test('GA4: analitica.js sale con el ID configurado y las páginas del público lo cargan; el panel no', async () => {
+  const js = await (await fetch(BASE + '/analitica.js')).text();
+  assert.ok(js.includes("const ID = 'G-PRUEBA123'"));
+  for (const p of ['/', '/prueba-a']) assert.ok((await (await fetch(BASE + p)).text()).includes('/analitica.js'), p);
+  assert.ok(!(await (await fetch(BASE + '/prueba-a/operador')).text()).includes('/analitica.js'));
 });
 
 test('la lista pública muestra los eventos visibles ordenados por fecha, sin los ocultos', async () => {

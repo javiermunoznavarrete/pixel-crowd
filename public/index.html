@@ -215,6 +215,7 @@
 <script src="/vendor/NoSleep.min.js"></script>
 <script src="/show.js"></script>
 <script src="/portada.js"></script>
+<script src="/analitica.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -433,6 +434,7 @@
       u.silla = numero;
       if (fila) u.filaSilla = fila;
       // El aporte no bloquea el show: si falla (sin red), se enciende igual
+      pcAnalitica('aporte_silla', { sector: sector.id });
       fetch(Show.api('/aporte'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ zona: sector.id, ...celdaSel, fila, silla: numero, dispositivo: dispositivo() }),
@@ -470,6 +472,7 @@
     ubicacion = u;
     try { localStorage.setItem(CLAVE_UBICACION, JSON.stringify(u)); } catch (e) {}
     $('info-ubic').textContent = describir(u);
+    pcAnalitica('entrar_show', { sector: u.sector, tipo_zona: recinto.porId[u.sector].tipo });
 
     document.documentElement.requestFullscreen?.().catch(() => {});
     noSleep.enable().catch(() => {}); // debe llamarse dentro del toque del usuario
@@ -484,6 +487,7 @@
       alConexion: (ok, modo) => {
         $('info-punto').classList.toggle('ok', ok);
         $('info-con').textContent = !ok ? 'Reconectando… (el show sigue)' : modo === 'consultas' ? 'Conectado (señal débil)' : 'Conectado';
+        if (ok && modo === 'consultas' && !senalDebilMedida) { senalDebilMedida = true; pcAnalitica('senal_debil', { sector: u.sector }); }
         if (ok) { sinSenalDesde = 0; return; }
         if (!sinSenalDesde) sinSenalDesde = Date.now();
       },
@@ -492,7 +496,7 @@
 
   // Sin señal por más de 30 s: el show sigue con lo que el teléfono ya recibió, pero se avisa que
   // existe el modo manual por si el show se detiene.
-  let sinSenalDesde = 0, avisado = false;
+  let sinSenalDesde = 0, avisado = false, senalDebilMedida = false;
   setInterval(() => {
     const largo = sinSenalDesde && Date.now() - sinSenalDesde > 30000;
     if (largo && !avisado && !manual) {
@@ -508,6 +512,7 @@
   let manual = null;
   function elegirManual(color) {
     manual = color;
+    if (color) pcAnalitica('color_manual', { color });
     document.querySelectorAll('#manual .colores button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.color === color)));
     $('volver-show').hidden = !color;
     $('pista').style.opacity = 0;
@@ -520,6 +525,7 @@
     $('capa-info').classList.toggle('visible');
   };
   $('cambiar').onclick = () => {
+    pcAnalitica('cambiar_ubicacion');
     $('show').classList.remove('activo');
     $('capa-info').classList.remove('visible');
     document.exitFullscreen?.().catch(() => {});

@@ -140,6 +140,13 @@ Donde no hay mapa numerado (las graderías y palcos del Caupolicán, o cualquier
 - **Brillo y linterna:** la web no puede subir el brillo ni usar la linterna en iPhone. Eso requiere app nativa.
 - **Recintos curvos:** la grilla del mosaico usa el orden de los asientos dentro de cada fila. En galerías muy curvas conviene proyectar por coordenadas.
 
+## Estadísticas (Google Analytics 4)
+
+Opcional. Define la variable `GA4_ID` (el ID de medición, `G-…`) y reinicia: la lista de shows y la página del público cargan GA4. El panel del operador, el simulador y el QR no. Sin la variable no se carga nada de Google.
+
+- **Privacidad:** se usa el modo de consentimiento de Google. Mientras la persona no acepta el aviso, GA4 no guarda cookies. Nunca se envían datos personales.
+- **Eventos propios** (parámetro `evento_pc` = el show): `entrar_show` (sector y tipo de zona), `senal_debil` (el teléfono pasó a consultas), `color_manual`, `aporte_silla` y `cambiar_ubicacion`.
+
 ## Prueba de carga
 
 `tools/carga.js` simula miles de teléfonos conectados a un evento (con su sincronización de reloj) y mide cuánto tarda en llegarles cada cambio de escena:

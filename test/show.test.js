@@ -283,3 +283,13 @@ test('reloj: entre varias muestras se queda con la de menor ida y vuelta', () =>
   assert.strictEqual(S.reloj.rtt, 20);
   assert.strictEqual(S.reloj.offset, 1000);
 });
+
+test('GA4 sin ID válido: no carga nada de Google y pcAnalitica no hace nada', () => {
+  const creados = [];
+  const ctx = { window: {}, location: { pathname: '/demo' }, document: { createElement: (t) => { creados.push(t); return {}; } }, localStorage: { getItem: () => null } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'analitica.js'), 'utf8'), ctx);
+  assert.strictEqual(typeof ctx.window.pcAnalitica, 'function');
+  ctx.window.pcAnalitica('entrar_show', { sector: 'G1' });
+  assert.deepStrictEqual(creados, []);
+  assert.strictEqual(ctx.window.dataLayer, undefined);
+});
