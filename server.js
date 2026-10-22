@@ -157,6 +157,7 @@ function nuevaCapa(datos, inicio) {
     angulo: num(datos.angulo, -360, 360, 90),
     texto: String(datos.texto || '').slice(0, 60),
     modo: datos.modo === 'sector' ? 'sector' : 'completa', // bandera/tela: todo el público o una por sector
+    pais: datos.pais === 'japon' ? 'japon' : 'chile', // bandera: Chile o Japón
     inicio,
   };
 }

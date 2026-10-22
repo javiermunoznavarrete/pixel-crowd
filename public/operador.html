@@ -104,6 +104,12 @@
             <option value="45">Diagonal</option>
           </select>
         </div>
+        <div class="param" data-p="pais"><label>País</label>
+          <select id="pais">
+            <option value="chile">Chile 🇨🇱</option>
+            <option value="japon">Japón 🇯🇵</option>
+          </select>
+        </div>
         <div class="param" data-p="modo"><label>Bandera</label>
           <select id="modo">
             <option value="completa">Una con todo el público</option>
@@ -222,7 +228,7 @@
   const PARAMS = {
     solido: ['color'], pulso: ['color', 'color2', 'bpm'], estrobo: ['color', 'color2', 'hz'],
     ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
-    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['modo', 'velocidad'], tela: ['color', 'color2', 'modo', 'velocidad'],
+    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['pais', 'modo', 'velocidad'], tela: ['color', 'color2', 'modo', 'velocidad'],
   };
   const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s', bandera: 'viento', tela: 'viento' };
   let efecto = 'solido';
@@ -251,7 +257,7 @@
   function capaActual() {
     return {
       efecto, color: $('color').value, color2: $('color2').value, velocidad: +$('velocidad').value,
-      bpm: +$('bpm').value, hz: +$('hz').value, angulo: +$('angulo').value, texto: $('texto').value, modo: $('modo').value,
+      bpm: +$('bpm').value, hz: +$('hz').value, angulo: +$('angulo').value, texto: $('texto').value, modo: $('modo').value, pais: $('pais').value,
     };
   }
 

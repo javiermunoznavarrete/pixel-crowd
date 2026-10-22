@@ -6,27 +6,98 @@
   "fechaISO": "2026-12-03",
   "recinto": "teatro-caupolican",
   "subtitulo": "Jueves 3 dic 2026 · Teatro Caupolicán",
-  "nota": "Primer show en Chile y primera fecha de su gira latinoamericana 2026. La misma noche que BABYMETAL en el Movistar Arena.",
+  "nota": "Primer show en Chile y primera fecha de su gira latinoamericana 2026, la misma noche que BABYMETAL. Orden según sus shows de octubre 2026 (un show propio puede ser más largo). Colores del uniforme: azul marino, blanco y rojo. El Caupolicán no tiene asientos numerados: no hay mosaicos de texto. BPM aproximados.",
+  "fuente": "Setlists de octubre 2026 en setlist.fm (Fukushima 18/10, Nagasaki 17/10) y shows propios de 2026 (Toryanse, Arigato, Free Your Mind). Ajustar con el setlist real de Santiago.",
   "presets": [
     {
       "nombre": "Bandera de Chile",
       "destacado": true,
-      "descripcion": "Una sola bandera con todo el público, vista desde el escenario",
-      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "modo": "completa", "velocidad": 20 } }]
+      "descripcion": "Una sola bandera chilena con todo el público, vista desde el escenario",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "pais": "chile", "modo": "completa", "velocidad": 20 } }]
     },
     {
-      "nombre": "Tela roja",
-      "descripcion": "Una gran tela roja flameando con todo el público",
-      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "tela", "modo": "completa", "color": "#e60012", "color2": "#000000", "velocidad": 30 } }]
+      "nombre": "Bandera de Japón 🇯🇵",
+      "descripcion": "El círculo rojo sobre blanco con todo el público: Japón en Chile",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "pais": "japon", "modo": "completa", "velocidad": 20 } }]
     },
     {
-      "nombre": "Ola de lado a lado",
-      "descripcion": "Ola celeste que cruza el teatro",
-      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#00e5ff", "color2": "#05051a", "velocidad": 20, "angulo": 0 } }]
+      "nombre": "Uniforme AG",
+      "descripcion": "Tela azul marino, el color del uniforme escolar del grupo (para la entrada o entre canciones)",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "tela", "modo": "completa", "color": "#1d3a8a", "color2": "#000000", "velocidad": 18 } }]
+    },
+    {
+      "cancion": "Go Wild", "nombre": "Salvaje",
+      "descripcion": "Apertura: destellos rojos y blancos",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "estrobo", "color": "#d7263d", "color2": "#ffffff", "hz": 2 } }]
+    },
+    {
+      "cancion": "Chanka Chanka", "nombre": "Matsuri",
+      "descripcion": "Fiesta de festival japonés: pulso rojo y dorado",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#ffb300", "color2": "#d7263d", "bpm": 120 } }]
+    },
+    {
+      "cancion": "Otona Blue", "nombre": "Azul adulto",
+      "descripcion": "Tela azul profundo que flamea lento, para el tema jazzero y sensual",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "tela", "modo": "completa", "color": "#1e5bd8", "color2": "#000000", "velocidad": 14 } }]
+    },
+    {
+      "cancion": "Oi AG!", "nombre": "¡Oi!",
+      "descripcion": "Latidos rojos y blancos para corear",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#ffffff", "color2": "#d7263d", "bpm": 150 } }]
+    },
+    {
+      "cancion": "TTTTOKYO", "nombre": "Neón de Tokio",
+      "descripcion": "Arcoíris rápido de lado a lado",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "arcoiris", "velocidad": 50, "angulo": 0 } }]
+    },
+    {
+      "cancion": "Dance Dance", "nombre": "Ola de baile",
+      "descripcion": "Ola magenta que cruza el teatro",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#ff2fa8", "color2": "#14002a", "velocidad": 25, "angulo": 0 } }]
+    },
+    {
+      "cancion": "UTAGE HIKARU", "nombre": "Banquete de luz",
+      "descripcion": "Onda dorada que nace en el escenario (utage: banquete; hikaru: brillar)",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "onda", "color": "#ffd400", "color2": "#1a0a00", "velocidad": 18 } }]
+    },
+    {
+      "cancion": "Pineapple Kryptonite", "nombre": "Piña",
+      "descripcion": "Ola amarilla sobre verde, por los lentes de piña",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#ffd400", "color2": "#0f5c2a", "velocidad": 22, "angulo": 45 } }]
+    },
+    {
+      "cancion": "Fly High", "nombre": "Despegue",
+      "descripcion": "Ola celeste que sube desde la cancha hacia las graderías",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#7fd4ff", "color2": "#04122a", "velocidad": 20, "angulo": 90 } }]
+    },
+    {
+      "cancion": "Tokyo Calling", "nombre": "Llamado de Tokio",
+      "descripcion": "Pulso rosado neón",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#ff3d9a", "color2": "#0a0014", "bpm": 128 } }]
+    },
+    {
+      "cancion": "One Heart", "nombre": "Un solo corazón",
+      "descripcion": "Cierre: todo el teatro late en rojo como un corazón",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#d7263d", "color2": "#1a0005", "bpm": 72 } }]
+    },
+    {
+      "cancion": "Toryanse", "nombre": "Torii",
+      "descripcion": "Canción tradicional japonesa: onda bermellón lenta, como el portal de un santuario",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "onda", "color": "#e34234", "color2": "#140404", "velocidad": 8 } }]
+    },
+    {
+      "cancion": "Arigato", "nombre": "Gracias, Chile",
+      "descripcion": "La bandera chilena flameando con viento fuerte",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "pais": "chile", "modo": "completa", "velocidad": 40 } }]
+    },
+    {
+      "cancion": "Free Your Mind", "nombre": "Mente libre",
+      "descripcion": "Arcoíris lento que gira por todo el recinto",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "arcoiris", "velocidad": 18, "angulo": 270 } }]
     },
     {
       "nombre": "Apagón",
-      "descripcion": "Todo en negro",
+      "descripcion": "Todo en negro (entre canciones)",
       "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#000000" } }]
     }
   ]

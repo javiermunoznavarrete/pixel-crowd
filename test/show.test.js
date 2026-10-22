@@ -213,6 +213,21 @@ test('tela quieta (viento 0): color pleno y parejo', () => {
   assert.strictEqual([...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid, vista: a.vista }, 5000)].map(Math.round).join(','), '45,123,255');
 });
 
+test('bandera de Japón: círculo rojo al centro sobre blanco', () => {
+  const capa = { id: 1, efecto: 'bandera', pais: 'japon', modo: 'sector', velocidad: 0, inicio: 0 };
+  const s = recinto.porId.G2;
+  const color = (col, rowDesdeArriba) => {
+    const a = [...s.mapa.values()].find((x) => x.grid.col === col && x.grid.rows - 1 - x.grid.row === rowDesdeArriba);
+    return [...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid }, 0)].map(Math.round).join(',');
+  };
+  assert.strictEqual(color(Math.floor(s.cols / 2), Math.floor(s.rows / 2)), '188,0,45'); // centro: rojo
+  assert.strictEqual(color(2, 0), '255,255,255'); // esquina: blanco
+  // El rojo ocupa cerca de π·0,3²/1,5 ≈ 19 % de la bandera
+  let rojos = 0, total = 0;
+  for (const a of s.mapa.values()) { total++; if (Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid }, 0)[1] === 0) rojos++; }
+  assert.ok(rojos / total > 0.12 && rojos / total < 0.26, `rojo ${(rojos / total).toFixed(2)}`);
+});
+
 test('el glifo de zorro se dibuja en los mosaicos', () => {
   const capa = { id: 1, efecto: 'texto', color: '#ffffff', color2: '#000000', velocidad: 0, texto: '🦊', inicio: 0 };
   let encendidos = 0;

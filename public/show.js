@@ -233,7 +233,7 @@
   // ---------- Efectos ----------
   const EFECTOS = {
     solido: 'Sólido', pulso: 'Pulso', estrobo: 'Estrobo suave', ola: 'Ola',
-    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)', bandera: 'Bandera de Chile', tela: 'Tela al viento',
+    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)', bandera: 'Bandera', tela: 'Tela al viento',
   };
 
   // ---------- Bandera de Chile ----------
@@ -254,7 +254,15 @@
     return dentro;
   }
   // conEstrella: en zonas generales (solo 3×3 subzonas) la estrella no se distingue y taparía el cantón
-  function colorBandera(u, v, conEstrella) {
+  // Bandera de Japón (Hinomaru): círculo rojo centrado, de diámetro 3/5 de la altura, sobre blanco (proporción 3:2)
+  const ROJO_JP = [188, 0, 45];
+  function colorHinomaru(u, v) {
+    const dx = (u - 0.5) * 1.5, dy = v - 0.5; // en unidades de altura
+    return dx * dx + dy * dy < 0.3 * 0.3 ? ROJO_JP : BLANCO;
+  }
+
+  function colorBandera(u, v, conEstrella, pais) {
+    if (pais === 'japon') return colorHinomaru(u, v);
     if (v >= 0.5) return ROJO_CL;
     if (u >= 1 / 3) return BLANCO;
     return conEstrella && dentroDe(ESTRELLA, u * 3, v * 2) ? BLANCO : AZUL_CL;
@@ -326,7 +334,7 @@
         const f = flameo(c.u, c.w, el, v);
         if (!f) return [0, 0, 0]; // fuera de la tela (bordes que flamean): apagado
         const k = 0.6 + 0.4 * f.luz; // luz en las crestas, sombra en los valles
-        const [r, g, b] = colorBandera(f.u, f.w, c.estrella);
+        const [r, g, b] = colorBandera(f.u, f.w, c.estrella, capa.pais);
         return [r * k, g * k, b * k];
       }
       case 'tela': {
