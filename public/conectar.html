@@ -15,6 +15,8 @@
   p { color: var(--suave); margin: 0; }
   .marca { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.2em; font-size: clamp(14px, 2vw, 20px); }
   .marca .logo { width: 1.4em; height: 1.4em; }
+  .pie { margin-top: 12px; font-size: 13px; color: var(--suave); }
+  .pie a { color: inherit; }
   #qr { background: #fff; padding: 16px; border-radius: 20px; width: min(70vh, 86vw); aspect-ratio: 1; }
   #qr svg { width: 100%; height: 100%; display: block; }
   .url { font-size: clamp(20px, 3.4vw, 40px); font-weight: 700; color: var(--acento); word-break: break-all; }
@@ -31,6 +33,10 @@
   <div class="url" id="url">—</div>
   <p>Conéctate a la misma WiFi y abre la cámara del teléfono.</p>
   <div class="otras" id="otras"></div>
+  <footer class="pie">
+    Pixel Crowd © 2026 Javier Julian Muñoz Navarrete · Licencias comerciales y contratación del servicio:
+    <a href="mailto:javier_munoz_navarrete@hotmail.com">javier_munoz_navarrete@hotmail.com</a>
+  </footer>
 </main>
 <script src="/vendor/qrcode.js"></script>
 <script>
