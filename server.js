@@ -61,7 +61,7 @@ function ubicacionDe(params) {
 }
 
 // ---------- Estado del show ----------
-const EFECTOS = ['solido', 'pulso', 'estrobo', 'ola', 'onda', 'arcoiris', 'texto'];
+const EFECTOS = ['solido', 'pulso', 'estrobo', 'ola', 'onda', 'arcoiris', 'texto', 'bandera'];
 let contadorCapas = 0;
 
 function nuevaCapa(datos, inicio) {

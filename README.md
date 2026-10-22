@@ -50,6 +50,16 @@ npm test             # tests del motor de efectos y del servidor
 
 Efectos disponibles: sólido, pulso (BPM), estrobo suave (**máximo 3 Hz** por seguridad fotosensible), ola con dirección, onda desde el escenario, arcoíris y texto en mosaico (solo en sectores numerados).
 
+## Presets por concierto
+
+Cada concierto tiene su pestaña en "Escenas rápidas" del panel, definida en `public/conciertos/<concierto>.js`. Para agregar otro concierto, copia el archivo y súmalo con un `<script>` en `operador.html`.
+
+**BABYMETAL · 3 dic 2026, Movistar Arena** (`public/conciertos/babymetal.js`): presets en el orden del setlist de la gira 2026, con los colores de la banda (rojo, negro y blanco):
+- **Bandera de Chile** (destacada): una bandera en cada galería, con la estrella en el cantón, y otra en la cancha vista desde el escenario, ondeando.
+- BABYMETAL DEATH → destellos rojos · Megitsune → zorros 🦊 y "KITSUNE" en mosaico · Monochrome → onda blanca lenta · METALI!! → ola roja · RATATATA → arcoíris rápido · Gimme Chocolate!! / Headbangeeeeerrrrr!!!!! → pulsos al tempo · Road of Resistance → "CHILE 🦊 BABYMETAL" en las galerías, entre otros.
+
+El orden y los BPM son una referencia: hay que ajustarlos en el ensayo y con el setlist real de Santiago. Por seguridad, ni el estrobo ni el pulso superan 3 ciclos por segundo, pida lo que pida el preset.
+
 ## Recintos
 
 Cada recinto vive en `data/recintos/<nombre>/`. El servidor usa `RECINTO` (por defecto `movistar-arena`):

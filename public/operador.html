@@ -34,6 +34,14 @@
   .escenas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .escena { padding: 10px; border-radius: 8px; border: 1px solid var(--borde); background: #1d1d28; text-align: left; }
   .escena:active, .aplicar:active { transform: scale(0.98); }
+  .escena small { display: block; font-size: 11px; color: var(--suave); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .escena.destacada { grid-column: 1 / -1; background: linear-gradient(90deg, #0039a6 0 33%, #ffffff 33% 100%); color: #0b0b10; font-weight: 700;
+    border: 0; box-shadow: inset 0 -12px 0 #d52b1e; padding-bottom: 18px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--borde); background: #1d1d28; }
+  .tabs button.sel { background: #e60012; border-color: #e60012; color: #fff; font-weight: 700; }
+  .info-concierto { font-size: 12px; color: var(--suave); margin-bottom: 10px; line-height: 1.5; }
+  .info-concierto strong { color: var(--texto); }
   .ajustes .param { grid-template-columns: 110px 1fr; }
   .ajustes .param input { grid-column: 2; }
   #msg { min-height: 18px; font-size: 13px; color: var(--suave); margin-top: 8px; }
@@ -83,7 +91,9 @@
     </section>
 
     <section>
-      <h2>Escenas rápidas (todo el recinto)</h2>
+      <h2>Escenas rápidas</h2>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="info-concierto" id="info-concierto" hidden></div>
       <div class="escenas" id="escenas"></div>
     </section>
 
@@ -100,6 +110,7 @@
 </div>
 
 <script src="/show.js"></script>
+<script src="/conciertos/babymetal.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -124,7 +135,7 @@
   const PARAMS = {
     solido: ['color'], pulso: ['color', 'color2', 'bpm'], estrobo: ['color', 'color2', 'hz'],
     ola: ['color', 'color2', 'velocidad', 'angulo'], onda: ['color', 'color2', 'velocidad'],
-    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'],
+    arcoiris: ['velocidad', 'angulo'], texto: ['color', 'color2', 'velocidad', 'texto'], bandera: ['velocidad'],
   };
   const UNIDAD_VEL = { ola: 'm/s', onda: 'm/s', arcoiris: '', texto: 'col/s' };
   let efecto = 'solido';
@@ -201,13 +212,45 @@
     ['Estrobo blanco', () => [{ zonas: 'todas', capa: { efecto: 'estrobo', color: '#ffffff', color2: '#000000', hz: 2 } }]],
     ['Apagón', () => [{ zonas: 'todas', capa: { efecto: 'solido', color: '#000000' } }]],
   ];
-  for (const [nombre, fn] of ESCENAS) {
-    const b = document.createElement('button');
-    b.className = 'escena';
-    b.textContent = nombre;
-    b.onclick = () => enviar(fn(), nombre);
-    $('escenas').appendChild(b);
+  // Pestañas: "General" + una por cada concierto cargado (public/conciertos/*.js)
+  const resolverZonas = (z) => (z === 'numeradas' ? numeradas : z === 'generales' ? generales : z);
+  const PESTANAS = [
+    { id: 'general', titulo: 'General', presets: ESCENAS.map(([nombre, fn]) => ({ nombre, fn })) },
+    ...(window.CONCIERTOS || []).map((c) => ({
+      id: c.id, titulo: c.pestana || c.titulo, subtitulo: c.subtitulo, nota: c.nota,
+      presets: c.presets.map((p) => ({
+        ...p,
+        fn: () => p.asignaciones.map((a) => ({ zonas: resolverZonas(a.zonas), capa: a.capa })),
+      })),
+    })),
+  ];
+
+  function mostrarPestana(id) {
+    const pestana = PESTANAS.find((p) => p.id === id) || PESTANAS[0];
+    $('tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('sel', b.dataset.id === pestana.id));
+    $('info-concierto').hidden = !pestana.subtitulo;
+    $('info-concierto').innerHTML = pestana.subtitulo ? `<strong>${pestana.subtitulo}</strong><br>${pestana.nota || ''}` : '';
+    $('escenas').innerHTML = '';
+    for (const p of pestana.presets) {
+      const b = document.createElement('button');
+      b.className = 'escena' + (p.destacado ? ' destacada' : '') + (p.cancion ? ' con-cancion' : '');
+      b.innerHTML = (p.cancion ? `<small>${p.cancion}</small>` : '') + `<span>${p.nombre}</span>`;
+      if (p.descripcion) b.title = p.descripcion;
+      b.onclick = () => enviar(p.fn(), (p.cancion ? p.cancion + ' — ' : '') + p.nombre);
+      $('escenas').appendChild(b);
+    }
+    try { localStorage.setItem('op-pestana', pestana.id); } catch (e) {}
   }
+  for (const p of PESTANAS) {
+    const b = document.createElement('button');
+    b.dataset.id = p.id;
+    b.textContent = p.titulo;
+    b.onclick = () => mostrarPestana(p.id);
+    $('tabs').appendChild(b);
+  }
+  let pestanaInicial = PESTANAS.length > 1 ? PESTANAS[1].id : 'general';
+  try { pestanaInicial = localStorage.getItem('op-pestana') || pestanaInicial; } catch (e) {}
+  mostrarPestana(pestanaInicial);
 
   // ---- Conexión y conteos ----
   Show.conectar({

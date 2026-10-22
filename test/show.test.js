@@ -87,6 +87,41 @@ test('el texto fijo dibuja letras solo en galerías numeradas', () => {
   assert.deepStrictEqual([...Show.colorEn(capa, cancha, 0)], [0, 0, 0]);
 });
 
+test('bandera de Chile en una galería: cantón azul con estrella blanca, franja blanca arriba y roja abajo', () => {
+  const capa = { id: 1, efecto: 'bandera', velocidad: 0, inicio: 0 };
+  const s = recinto.porId.G3;
+  const color = (col, rowDesdeArriba) => {
+    const a = [...s.mapa.values()].find((x) => x.grid.col === col && x.grid.rows - 1 - x.grid.row === rowDesdeArriba);
+    return [...Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid }, 0)].map(Math.round).join(',');
+  };
+  assert.strictEqual(color(1, 0), '0,57,166'); // esquina del cantón: azul
+  assert.strictEqual(color(16, 2), '255,255,255'); // centro del cantón: estrella blanca
+  assert.strictEqual(color(80, 1), '255,255,255'); // franja superior derecha: blanca
+  assert.strictEqual(color(10, 11), '213,43,30'); // fila de abajo: roja
+});
+
+test('bandera en la cancha: vista desde el escenario, el fondo es la parte de arriba', () => {
+  const capa = { id: 1, efecto: 'bandera', velocidad: 0, inicio: 0 };
+  const c = (profundidad, lado) => [...Show.colorEn(capa, Show.posicionDe(recinto, { sector: 'CANCHA', profundidad, lado }), 0)].join(',');
+  assert.strictEqual(c('atras', 'der'), '0,57,166'); // la derecha del público es la izquierda de quien mira desde el escenario
+  assert.strictEqual(c('atras', 'izq'), '255,255,255');
+  assert.strictEqual(c('adelante', 'centro'), '213,43,30');
+});
+
+test('el glifo de zorro se dibuja en los mosaicos', () => {
+  const capa = { id: 1, efecto: 'texto', color: '#ffffff', color2: '#000000', velocidad: 0, texto: '🦊', inicio: 0 };
+  let encendidos = 0;
+  for (const a of recinto.porId.G2.mapa.values()) if (Show.colorEn(capa, { x: a.x, y: a.y, grid: a.grid }, 0)[0] === 255) encendidos++;
+  assert.strictEqual(encendidos, 2 + 4 + 5 + 3 + 5 + 3 + 1); // píxeles del glifo 5x7
+});
+
+test('el pulso tampoco supera 3 ciclos por segundo aunque se pida un BPM alto', () => {
+  const capa = { id: 1, efecto: 'pulso', color: '#ffffff', color2: '#000000', bpm: 600, inicio: 0 };
+  const pos = { x: 0, y: 0, grid: null };
+  // Con 3 Hz, a los 1/6 s el pulso está en su mínimo (negro); con 10 Hz estaría cerca del máximo
+  assert.ok(Show.colorEn(capa, pos, 1000 / 6)[0] < 1);
+});
+
 test('el reproductor mantiene la capa anterior hasta el inicio programado', () => {
   const r = Show.crearReproductor();
   r.actualizar({ capas: { G1: { id: 1, efecto: 'solido', color: '#ff0000', inicio: 0 } } });

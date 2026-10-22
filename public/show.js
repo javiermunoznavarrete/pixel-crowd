@@ -94,7 +94,12 @@
       return a ? { zona: s.id, x: a.x, y: a.y, grid: a.grid } : null;
     }
     const c = s.subzonas[ubicacion.profundidad + '-' + ubicacion.lado];
-    return c ? { zona: s.id, x: c.x, y: c.y, grid: null } : null;
+    return c ? { zona: s.id, x: c.x, y: c.y, grid: null, rel: relEnRect(s.rect, c.x, c.y) } : null;
+  }
+
+  // Posición relativa (0..1) dentro del rectángulo de una zona general, en el plano (u: izq→der, v: escenario→fondo)
+  function relEnRect(r, x, y) {
+    return { u: (x - r.x1) / (r.x2 - r.x1), v: (y - r.y1) / (r.y2 - r.y1) };
   }
 
   // ---------- Fuente 5x7 para mosaicos de texto ----------
@@ -114,6 +119,7 @@
     9: [14, 17, 17, 15, 1, 2, 12], ' ': [0, 0, 0, 0, 0, 0, 0], '!': [4, 4, 4, 4, 4, 0, 4],
     '?': [14, 17, 1, 2, 4, 0, 4], '.': [0, 0, 0, 0, 0, 12, 12], '-': [0, 0, 0, 31, 0, 0, 0],
     '♥': [0, 10, 31, 31, 14, 4, 0], '*': [0, 4, 21, 14, 21, 4, 0],
+    '🦊': [17, 27, 31, 21, 31, 14, 4], // cabeza de zorro (Fox God de BABYMETAL)
   };
 
   // Convierte el texto en columnas de 7 bits (bit 6 = fila superior).
@@ -140,8 +146,32 @@
   // ---------- Efectos ----------
   const EFECTOS = {
     solido: 'Sólido', pulso: 'Pulso', estrobo: 'Estrobo suave', ola: 'Ola',
-    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)',
+    onda: 'Onda desde escenario', arcoiris: 'Arcoíris', texto: 'Texto (mosaico)', bandera: 'Bandera de Chile',
   };
+
+  // ---------- Bandera de Chile ----------
+  // u: 0 = izquierda → 1 = derecha de quien mira; v: 0 = arriba → 1 = abajo.
+  // Cantón azul de 1/3 del largo y media altura, con estrella blanca al centro; franja blanca arriba, roja abajo.
+  const AZUL_CL = [0, 57, 166], ROJO_CL = [213, 43, 30], BLANCO = [255, 255, 255];
+  const ESTRELLA = Array.from({ length: 10 }, (_, k) => {
+    const a = -Math.PI / 2 + k * Math.PI / 5;
+    const r = k % 2 === 0 ? 0.34 : 0.34 * 0.382;
+    return [0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a)];
+  });
+  function dentroDe(poligono, x, y) {
+    let dentro = false;
+    for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+      const [xi, yi] = poligono[i], [xj, yj] = poligono[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) dentro = !dentro;
+    }
+    return dentro;
+  }
+  // conEstrella: en zonas generales (solo 3×3 subzonas) la estrella no se distingue y taparía el cantón
+  function colorBandera(u, v, conEstrella) {
+    if (v >= 0.5) return ROJO_CL;
+    if (u >= 1 / 3) return BLANCO;
+    return conEstrella && dentroDe(ESTRELLA, u * 3, v * 2) ? BLANCO : AZUL_CL;
+  }
 
   const rgbCache = new Map();
   function hexRgb(hex) {
@@ -178,7 +208,8 @@
       case 'solido':
         return c1;
       case 'pulso': {
-        const k = 0.5 + 0.5 * Math.cos(2 * Math.PI * el * (capa.bpm || 60) / 60);
+        const hz = Math.min(MAX_HZ_ESTROBO, (capa.bpm || 60) / 60); // mismo tope que el estrobo
+        const k = 0.5 + 0.5 * Math.cos(2 * Math.PI * el * hz);
         return mezcla(c2, c1, k);
       }
       case 'estrobo': {
@@ -202,6 +233,20 @@
       }
       case 'texto':
         return pixelTexto(capa, pos.grid, el, v) ? c1 : c2;
+      case 'bandera': {
+        let u, w;
+        if (pos.grid) { // sector numerado: la bandera ocupa toda su grilla, vista desde la cancha
+          u = (pos.grid.col + 0.5) / pos.grid.cols;
+          w = (pos.grid.rows - 1 - pos.grid.row + 0.5) / pos.grid.rows;
+        } else if (pos.rel) { // zona general vista desde el escenario: el fondo es la parte de arriba
+          u = 1 - pos.rel.u;
+          w = 1 - pos.rel.v;
+        } else return BLANCO;
+        // Ondeo suave: una sombra que recorre la bandera (velocidad 0 = quieta)
+        const k = v > 0 ? 0.8 + 0.2 * Math.sin(2 * Math.PI * (u * 1.3 - el * v / 40)) : 1;
+        const [r, g, b] = colorBandera(u, w, !!pos.grid);
+        return [r * k, g * k, b * k];
+      }
       default:
         return [0, 0, 0];
     }
@@ -303,7 +348,7 @@
   const css = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
 
   window.Show = {
-    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, colorEn, css, indiceAsientos,
+    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, colorEn, css, indiceAsientos,
     crearReproductor, conectar, EFECTOS, PROFUNDIDADES, LADOS, MAX_HZ_ESTROBO,
   };
 })();

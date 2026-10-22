@@ -100,7 +100,7 @@
         const puntos = [];
         for (let i = 0; i < MAX_PUNTOS_SUBZONA; i++) {
           const x = x1 + (ix + azar()) * (x2 - x1) / 3, y = y1 + (iy + azar()) * (y2 - y1) / 3;
-          puntos.push({ zona: s.id, x, y, r: azar(), pos, posReal: { zona: s.id, x, y, grid: null } });
+          puntos.push({ zona: s.id, x, y, r: azar(), pos, posReal: { zona: s.id, x, y, grid: null, rel: Show.relEnRect(s.rect, x, y) } });
         }
         subzonas[p.id + '-' + l.id] = puntos;
       }));
