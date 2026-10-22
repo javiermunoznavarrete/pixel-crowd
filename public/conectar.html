@@ -41,7 +41,14 @@
 <script src="/vendor/qrcode.js"></script>
 <script>
 (async function () {
-  const { urls } = await (await fetch('/api/red')).json();
+  // Página bajo /<evento>/conectar: el QR lleva directo a ese evento
+  const evento = location.pathname.split('/').filter(Boolean)[0];
+  const [{ urls }, datos] = await Promise.all([
+    fetch(`/api/e/${evento}/red`).then((r) => r.json()),
+    fetch(`/api/e/${evento}/evento`).then((r) => r.json()),
+  ]);
+  document.title = `Pixel Crowd · ${datos.titulo}`;
+  document.querySelector('h1').textContent = `${datos.titulo}: escanea y enciende tu pantalla`;
   function mostrar(url) {
     const qr = qrcode(0, 'M');
     qr.addData(url);

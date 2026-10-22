@@ -73,7 +73,7 @@
 
   // El simulador muestra la ocupación real: requiere la sesión del administrador
   if ((await Sesion.verificar()) !== true) {
-    $('indicador').innerHTML = '<span class="dato">Ingresa la clave en el <a href="/operador" style="color:inherit"><b>panel del operador</b></a> y recarga esta página.</span>';
+    $('indicador').innerHTML = '<span class="dato">Ingresa la clave en el <a href="/' + Show.evento + '/operador" style="color:inherit"><b>panel del operador</b></a> y recarga esta página.</span>';
     return;
   }
 

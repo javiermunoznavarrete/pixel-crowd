@@ -1,0 +1,10 @@
+{
+  "titulo": "Prueba A",
+  "lugar": "Estadio Demo",
+  "fecha": "algún día",
+  "fechaISO": "2999-01-01",
+  "recinto": "demo",
+  "presets": [
+    { "nombre": "Rojo", "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#ff0000" } }] }
+  ]
+}

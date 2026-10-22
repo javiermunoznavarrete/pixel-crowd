@@ -1,4 +1,5 @@
 node_modules/
 .claude/
-# Clave del panel del operador (local, nunca al repositorio)
+# Claves (locales, nunca al repositorio)
 clave-admin.txt
+data/eventos/*/clave.txt

@@ -74,7 +74,8 @@
     <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
     <h1>Panel del operador</h1>
     <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos ·
-      <a href="/conectar" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>
+      <a id="enlace-qr" href="#" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>
+    <div class="estado"><span id="titulo-evento"></span> · <a href="/" style="color:inherit">Otros eventos</a></div>
 
     <section data-plegable="zonas" data-plegado-movil>
       <h2>Zonas</h2>
@@ -155,7 +156,6 @@
 <script src="/plegables.js"></script>
 <script src="/sesion.js"></script>
 <script src="/show.js"></script>
-<script src="/conciertos/babymetal.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -185,10 +185,13 @@
     });
   }
   if ((await Sesion.verificar()) !== true) await pedirClave();
-  document.querySelector('.vista iframe').src = '/simulador?embed';
+  document.querySelector('.vista iframe').src = `/${Show.evento}/simulador?embed`;
+  $('enlace-qr').href = `/${Show.evento}/conectar`;
   $('salir').onclick = async () => { await Sesion.salir(); location.reload(); };
 
-  const recinto = await Show.cargarRecinto();
+  const [recinto, evento] = await Promise.all([Show.cargarRecinto(), Show.cargarEvento()]);
+  document.title = `Pixel Crowd · Operador · ${evento.titulo}`;
+  $('titulo-evento').textContent = `${evento.titulo}${evento.lugar ? ' · ' + evento.lugar : ''}`;
 
   // ---- Zonas ----
   const seleccion = new Set(recinto.sectores.map((s) => s.id));
@@ -245,7 +248,7 @@
   // ---- Envío ----
   async function enviar(asignaciones, etiqueta, reintento = false) {
     try {
-      const r = await fetch('/api/escena', {
+      const r = await fetch(Show.api('/escena'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-sesion': Sesion.get() },
         body: JSON.stringify({ asignaciones, adelantoMs: +$('adelanto').value || 300 }),
@@ -290,18 +293,20 @@
     ['Estrobo blanco', () => [{ zonas: 'todas', capa: { efecto: 'estrobo', color: '#ffffff', color2: '#000000', hz: 2 } }]],
     ['Apagón', () => [{ zonas: 'todas', capa: { efecto: 'solido', color: '#000000' } }]],
   ];
-  // Pestañas: "General" + una por cada concierto cargado (public/conciertos/*.js)
+  // Pestañas: "General" + la del evento, con sus presets (data/eventos/<evento>/evento.json)
   const resolverZonas = (z) => (z === 'numeradas' ? numeradas : z === 'generales' ? generales : z);
   const PESTANAS = [
     { id: 'general', titulo: 'General', presets: ESCENAS.map(([nombre, fn]) => ({ nombre, fn })) },
-    ...(window.CONCIERTOS || []).map((c) => ({
-      id: c.id, titulo: c.pestana || c.titulo, subtitulo: c.subtitulo, nota: c.nota,
-      presets: c.presets.map((p) => ({
+  ];
+  if ((evento.presets || []).length) {
+    PESTANAS.push({
+      id: evento.slug, titulo: evento.pestana || evento.titulo, subtitulo: evento.subtitulo, nota: evento.nota,
+      presets: evento.presets.map((p) => ({
         ...p,
         fn: () => p.asignaciones.map((a) => ({ zonas: resolverZonas(a.zonas), capa: a.capa })),
       })),
-    })),
-  ];
+    });
+  }
 
   function mostrarPestana(id) {
     const pestana = PESTANAS.find((p) => p.id === id) || PESTANAS[0];
@@ -317,7 +322,7 @@
       b.onclick = () => enviar(p.fn(), (p.cancion ? p.cancion + ' — ' : '') + p.nombre);
       $('escenas').appendChild(b);
     }
-    try { localStorage.setItem('op-pestana', pestana.id); } catch (e) {}
+    try { localStorage.setItem('op-pestana:' + Show.evento, pestana.id); } catch (e) {}
   }
   for (const p of PESTANAS) {
     const b = document.createElement('button');
@@ -327,7 +332,7 @@
     $('tabs').appendChild(b);
   }
   let pestanaInicial = PESTANAS.length > 1 ? PESTANAS[1].id : 'general';
-  try { pestanaInicial = localStorage.getItem('op-pestana') || pestanaInicial; } catch (e) {}
+  try { pestanaInicial = localStorage.getItem('op-pestana:' + Show.evento) || pestanaInicial; } catch (e) {}
   mostrarPestana(pestanaInicial);
 
   // ---- Conexión y conteos ----

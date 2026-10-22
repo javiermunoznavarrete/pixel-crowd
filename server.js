@@ -1,10 +1,13 @@
 // Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
-// Servidor del prototipo: sin dependencias, solo Node >= 18.
-//   /            → web del público
-//   /operador    → panel del operador
-//   /simulador   → vista del estadio con teléfonos virtuales
-// Los teléfonos reciben el estado por Server-Sent Events y calculan sus colores localmente.
+// Servidor de Pixel Crowd: sin dependencias, solo Node >= 18. Atiende varios eventos a la vez.
+//   /                      → lista de eventos
+//   /<evento>              → web del público de ese evento
+//   /<evento>/operador     → panel del operador
+//   /<evento>/simulador    → vista del recinto con teléfonos virtuales
+//   /<evento>/conectar     → QR para proyectar
+// Cada evento tiene su propio estado en vivo. Los teléfonos lo reciben por Server-Sent Events y calculan
+// sus colores localmente.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -12,79 +15,116 @@ const os = require('os');
 const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
-// ---------- Clave del administrador ----------
-// Se toma de CLAVE_ADMIN (u OP_TOKEN, nombre anterior) o del archivo local clave-admin.txt, que no se
-// sube a git. Sin clave, el panel queda abierto (solo para pruebas).
-function leerClave() {
-  if (process.env.CLAVE_ADMIN || process.env.OP_TOKEN) return process.env.CLAVE_ADMIN || process.env.OP_TOKEN;
-  try { return fs.readFileSync(path.join(__dirname, 'clave-admin.txt'), 'utf8').trim(); } catch { return ''; }
-}
-const CLAVE_ADMIN = leerClave();
+const PUBLIC = path.join(__dirname, 'public');
+const DIR_EVENTOS = process.env.EVENTOS_DIR || path.join(__dirname, 'data', 'eventos');
+const DIR_RECINTOS = process.env.RECINTOS_DIR || path.join(__dirname, 'data', 'recintos');
+const ZONA_HORARIA = 'America/Santiago';
+
+// ---------- Claves ----------
+// Clave general (entra a todos los eventos): CLAVE_ADMIN (u OP_TOKEN, nombre anterior) o clave-admin.txt.
+// Clave de un evento (solo entra a ese): CLAVE_EVENTO_<SLUG> o data/eventos/<slug>/clave.txt.
+// Ningún archivo de clave se sube a git. Sin ninguna clave, el panel queda abierto (solo para pruebas).
+function leerArchivo(ruta) { try { return fs.readFileSync(ruta, 'utf8').trim(); } catch { return ''; } }
+const CLAVE_ADMIN = process.env.CLAVE_ADMIN || process.env.OP_TOKEN || leerArchivo(path.join(__dirname, 'clave-admin.txt'));
 const huella = (texto) => crypto.createHash('sha256').update(String(texto)).digest();
-const HUELLA_CLAVE = CLAVE_ADMIN ? huella(CLAVE_ADMIN) : null;
+const HUELLA_ADMIN = CLAVE_ADMIN ? huella(CLAVE_ADMIN) : null;
 const DURACION_SESION = 12 * 60 * 60 * 1000;
 const MAX_INTENTOS = 5; // intentos fallidos seguidos antes de bloquear esa IP un minuto
-const sesiones = new Map(); // token → vencimiento
+const sesiones = new Map(); // token → { vence, alcance: '*' | slug }
 const intentos = new Map(); // ip → { fallidos, bloqueadoHasta }
 
 // Comparación en tiempo constante (sobre huellas del mismo largo) para no filtrar la clave por tiempos
-const claveCorrecta = (clave) => !!HUELLA_CLAVE && crypto.timingSafeEqual(huella(clave), HUELLA_CLAVE);
+const coincide = (clave, h) => !!h && crypto.timingSafeEqual(huella(clave), h);
 
-function sesionValida(token) {
-  if (!CLAVE_ADMIN) return true;
-  const vence = token && sesiones.get(token);
-  if (!vence) return false;
-  if (vence < Date.now()) { sesiones.delete(token); return false; }
-  return true;
+const requiereClave = (ev) => !!(HUELLA_ADMIN || (ev && ev.huellaClave));
+
+function sesionValida(token, ev) {
+  if (!requiereClave(ev)) return true;
+  const s = token && sesiones.get(token);
+  if (!s) return false;
+  if (s.vence < Date.now()) { sesiones.delete(token); return false; }
+  return s.alcance === '*' || (ev && s.alcance === ev.slug);
 }
-const PUBLIC = path.join(__dirname, 'public');
-// Recinto a usar: carpeta dentro de data/recintos/ (movistar-arena por defecto, demo para pruebas)
-const RECINTO = process.env.RECINTO || 'movistar-arena';
-const DATA = path.join(__dirname, 'data', 'recintos', RECINTO);
 
-// ---------- Recinto ----------
-function cargarRecinto() {
-  const recinto = JSON.parse(fs.readFileSync(path.join(DATA, 'recinto.json'), 'utf8'));
+// ---------- Recintos ----------
+const cacheRecintos = new Map();
+function cargarRecinto(nombre) {
+  if (cacheRecintos.has(nombre)) return cacheRecintos.get(nombre);
+  const dir = path.join(DIR_RECINTOS, nombre);
+  const recinto = JSON.parse(fs.readFileSync(path.join(dir, 'recinto.json'), 'utf8'));
   const porId = Object.fromEntries(recinto.sectores.map((s) => [s.id, s]));
   for (const s of recinto.sectores) if (s.tipo === 'numerada') s.asientos = [];
 
-  const lineas = fs.readFileSync(path.join(DATA, 'asientos.csv'), 'utf8').split(/\r?\n/);
+  const lineas = fs.readFileSync(path.join(dir, 'asientos.csv'), 'utf8').split(/\r?\n/);
   lineas.slice(1).forEach((linea, i) => {
     if (!linea.trim()) return;
     // col (opcional): columna del asiento en la grilla del sector, vista desde la cancha (para mosaicos)
     const [sector, fila, asiento, x, y, col] = linea.split(',').map((v) => v.trim());
     const s = porId[sector];
-    if (!s || s.tipo !== 'numerada') throw new Error(`asientos.csv línea ${i + 2}: sector "${sector}" no existe o no es numerado`);
+    if (!s || s.tipo !== 'numerada') throw new Error(`${nombre}/asientos.csv línea ${i + 2}: sector "${sector}" no existe o no es numerado`);
     const a = [fila, asiento, Number(x), Number(y)];
     if (col !== undefined && col !== '') a.push(Number(col));
     s.asientos.push(a);
   });
-  return recinto;
-}
 
-const recinto = cargarRecinto();
-const ZONAS = recinto.sectores.map((s) => s.id);
-const recintoJson = JSON.stringify(recinto);
-
-// Índice global de cada asiento, en el mismo orden en que aparecen en /api/recinto.
-// La ocupación se informa como un bitset sobre este índice (~1 KB para 8.000 asientos).
-const indiceAsiento = new Map();
-let totalAsientos = 0;
-for (const s of recinto.sectores) {
-  if (s.tipo === 'numerada') for (const [fila, asiento] of s.asientos) indiceAsiento.set(`${s.id}|${fila}|${asiento}`, totalAsientos++);
-}
-const SUBZONAS = new Set(['adelante', 'medio', 'atras'].flatMap((p) => ['izq', 'centro', 'der'].map((l) => `${p}-${l}`)));
-
-// Ubicación declarada por un teléfono (validada contra el mapa); null si no es válida.
-function ubicacionDe(params) {
-  const s = recinto.sectores.find((x) => x.id === params.get('zona'));
-  if (!s) return null;
-  if (s.tipo === 'numerada') {
-    const idx = indiceAsiento.get(`${s.id}|${params.get('fila')}|${params.get('asiento')}`);
-    return idx === undefined ? null : { asiento: idx };
+  // Índice global de cada asiento, en el mismo orden en que aparecen en el JSON del recinto.
+  // La ocupación se informa como un bitset sobre este índice (~1 KB para 8.000 asientos).
+  const indice = new Map();
+  let total = 0;
+  for (const s of recinto.sectores) {
+    if (s.tipo === 'numerada') for (const [fila, asiento] of s.asientos) indice.set(`${s.id}|${fila}|${asiento}`, total++);
   }
-  const sub = `${params.get('profundidad')}-${params.get('lado')}`;
-  return SUBZONAS.has(sub) ? { subzona: sub } : null;
+  const datos = { recinto, json: JSON.stringify(recinto), indice, total, zonas: recinto.sectores.map((s) => s.id) };
+  cacheRecintos.set(nombre, datos);
+  return datos;
+}
+
+// ---------- Eventos ----------
+const SLUG = /^[a-z0-9][a-z0-9-]{1,60}$/;
+const PAGINAS = { operador: 'operador.html', simulador: 'simulador.html', conectar: 'conectar.html' };
+const RESERVADOS = new Set(['api', 'vendor', ...Object.keys(PAGINAS)]);
+const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: ZONA_HORARIA }); // AAAA-MM-DD en Chile
+
+function cargarEventos() {
+  const eventos = new Map();
+  for (const slug of fs.readdirSync(DIR_EVENTOS).sort()) {
+    const dir = path.join(DIR_EVENTOS, slug);
+    if (!fs.statSync(dir).isDirectory()) continue;
+    if (!SLUG.test(slug) || RESERVADOS.has(slug)) throw new Error(`Nombre de evento no válido: "${slug}" (usa minúsculas, números y guiones)`);
+    const def = JSON.parse(fs.readFileSync(path.join(dir, 'evento.json'), 'utf8'));
+    const datosRecinto = cargarRecinto(def.recinto);
+    const clave = process.env['CLAVE_EVENTO_' + slug.toUpperCase().replace(/-/g, '_')] || leerArchivo(path.join(dir, 'clave.txt'));
+    const ev = {
+      slug, def: { ...def, slug }, ...datosRecinto,
+      huellaClave: clave ? huella(clave) : null,
+      estado: { version: 0, capas: {} },
+      ultimaOcupacion: '',
+    };
+    for (const z of ev.zonas) ev.estado.capas[z] = nuevaCapa({ efecto: 'pulso', color: '#3a2a80', color2: '#000000', bpm: 30 }, 0);
+    eventos.set(slug, ev);
+  }
+  if (!eventos.size) throw new Error(`No hay eventos en ${DIR_EVENTOS}`);
+  return eventos;
+}
+
+// proximo | hoy | terminado, según la fecha del evento en Chile
+function situacion(def) {
+  if (!def.fechaISO) return 'proximo';
+  const h = hoy();
+  return def.fechaISO > h ? 'proximo' : def.fechaISO === h ? 'hoy' : 'terminado';
+}
+
+const resumenPublico = (ev) => ({
+  slug: ev.slug, titulo: ev.def.titulo, lugar: ev.def.lugar, fecha: ev.def.fecha, fechaISO: ev.def.fechaISO,
+  situacion: situacion(ev.def), requiereClave: requiereClave(ev),
+});
+
+// Evento al que llevan las direcciones antiguas (/operador, /conectar…): el próximo visible
+function eventoPorDefecto() {
+  const visibles = [...eventos.values()].filter((e) => !e.def.oculto);
+  const vigentes = visibles.filter((e) => situacion(e.def) !== 'terminado')
+    .sort((a, b) => String(a.def.fechaISO).localeCompare(String(b.def.fechaISO)));
+  return vigentes[0] || visibles[0] || [...eventos.values()][0];
 }
 
 // ---------- Estado del show ----------
@@ -109,65 +149,80 @@ function nuevaCapa(datos, inicio) {
   };
 }
 
-const estado = { version: 0, capas: {} };
-for (const z of ZONAS) estado.capas[z] = nuevaCapa({ efecto: 'pulso', color: '#3a2a80', color2: '#000000', bpm: 30 }, 0);
+const eventos = cargarEventos();
+const SUBZONAS = new Set(['adelante', 'medio', 'atras'].flatMap((p) => ['izq', 'centro', 'der'].map((l) => `${p}-${l}`)));
+
+// Ubicación declarada por un teléfono (validada contra el mapa del evento); null si no es válida.
+function ubicacionDe(ev, params) {
+  const s = ev.recinto.sectores.find((x) => x.id === params.get('zona'));
+  if (!s) return null;
+  if (s.tipo === 'numerada') {
+    const idx = ev.indice.get(`${s.id}|${params.get('fila')}|${params.get('asiento')}`);
+    return idx === undefined ? null : { asiento: idx };
+  }
+  const sub = `${params.get('profundidad')}-${params.get('lado')}`;
+  return SUBZONAS.has(sub) ? { subzona: sub } : null;
+}
 
 // ---------- Clientes SSE ----------
-const clientes = new Set();
+const clientes = new Set(); // { res, ev, rol, zona, ubicacion }
 
 function enviar(res, evento, datos) {
   res.write(`event: ${evento}\ndata: ${JSON.stringify(datos)}\n\n`);
 }
 
-function difundirEstado() {
-  for (const c of clientes) enviar(c.res, 'estado', estado);
+function difundirEstado(ev) {
+  for (const c of clientes) if (c.ev === ev) enviar(c.res, 'estado', ev.estado);
 }
 
-function stats() {
-  const porZona = Object.fromEntries(ZONAS.map((z) => [z, 0]));
-  let publico = 0;
+function stats(ev) {
+  const porZona = Object.fromEntries(ev.zonas.map((z) => [z, 0]));
+  let publico = 0, conexiones = 0;
   for (const c of clientes) {
+    if (c.ev !== ev) continue;
+    conexiones++;
     if (c.rol !== 'publico') continue;
     publico++;
     if (c.zona in porZona) porZona[c.zona]++;
   }
-  return { publico, porZona, conexiones: clientes.size };
+  return { publico, porZona, conexiones };
 }
 
 // Qué asientos tienen un teléfono conectado y cuántos hay en cada subzona de las zonas generales
-function ocupacion() {
-  const bits = Buffer.alloc(Math.ceil(totalAsientos / 8));
+function ocupacion(ev) {
+  const bits = Buffer.alloc(Math.ceil(ev.total / 8));
   const generales = {};
   for (const c of clientes) {
-    if (c.rol !== 'publico' || !c.ubicacion) continue;
+    if (c.ev !== ev || c.rol !== 'publico' || !c.ubicacion) continue;
     if (c.ubicacion.asiento !== undefined) bits[c.ubicacion.asiento >> 3] |= 1 << (c.ubicacion.asiento & 7);
     else {
       const g = (generales[c.zona] ||= {});
       g[c.ubicacion.subzona] = (g[c.ubicacion.subzona] || 0) + 1;
     }
   }
-  return { totalAsientos, asientos: bits.toString('base64'), generales };
+  return { totalAsientos: ev.total, asientos: bits.toString('base64'), generales };
 }
 
 const OBSERVADORES = new Set(['operador', 'simulador']);
-let ultimaOcupacion = '';
 
 setInterval(() => {
-  const s = stats();
-  const o = ocupacion();
-  const oJson = JSON.stringify(o);
-  const cambio = oJson !== ultimaOcupacion;
-  ultimaOcupacion = oJson;
-  for (const c of clientes) {
-    if (c.rol === 'operador') enviar(c.res, 'stats', s);
-    if (OBSERVADORES.has(c.rol) && cambio) enviar(c.res, 'ocupacion', o);
-    if (c.rol !== 'operador') c.res.write(': ping\n\n'); // mantiene viva la conexión a través de proxies
+  for (const ev of eventos.values()) {
+    const s = stats(ev);
+    const o = ocupacion(ev);
+    const oJson = JSON.stringify(o);
+    const cambio = oJson !== ev.ultimaOcupacion;
+    ev.ultimaOcupacion = oJson;
+    for (const c of clientes) {
+      if (c.ev !== ev) continue;
+      if (c.rol === 'operador') enviar(c.res, 'stats', s);
+      if (OBSERVADORES.has(c.rol) && cambio) enviar(c.res, 'ocupacion', o);
+      if (c.rol !== 'operador') c.res.write(': ping\n\n'); // mantiene viva la conexión a través de proxies
+    }
   }
 }, 2000);
 
 // ---------- HTTP ----------
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
-const RUTAS = { '/': 'index.html', '/operador': 'operador.html', '/simulador': 'simulador.html', '/conectar': 'conectar.html' };
 
 // IPs de la red local, con WiFi/Ethernet primero. Se descartan adaptadores virtuales y VPN,
 // que los teléfonos de la misma WiFi no pueden alcanzar.
@@ -185,9 +240,20 @@ function ipsLocales() {
 }
 const urlPublico = (ip) => `http://${ip}${PORT === 80 ? '' : ':' + PORT}/`;
 
+// URLs con las que los teléfonos entran a un evento (URL_PUBLICO es la base, p. ej. el dominio de Railway)
+function urlsEvento(ev) {
+  const bases = process.env.URL_PUBLICO ? [process.env.URL_PUBLICO] : ipsLocales().map((i) => urlPublico(i.ip));
+  return bases.map((b) => b.replace(/\/?$/, '/') + ev.slug);
+}
+
 function json(res, codigo, datos) {
   res.writeHead(codigo, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(datos));
+}
+
+function redirigir(res, destino) {
+  res.writeHead(302, { Location: destino });
+  res.end();
 }
 
 function leerCuerpo(req, limite = 64 * 1024) {
@@ -202,17 +268,22 @@ function leerCuerpo(req, limite = 64 * 1024) {
   });
 }
 
-// POST /api/login { clave } → { sesion, vence }
+// POST /api/login { clave, evento? } → { sesion, vence, alcance }
+// La clave general da acceso a todos los eventos; la clave de un evento, solo a ese.
 async function iniciarSesion(req, res) {
-  if (!CLAVE_ADMIN) return json(res, 200, { sesion: 'abierta', abierto: true });
+  let datos;
+  try { datos = JSON.parse(await leerCuerpo(req, 2048)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
+  const ev = datos.evento ? eventos.get(datos.evento) : null;
+  if (!requiereClave(ev)) return json(res, 200, { sesion: 'abierta', abierto: true, alcance: '*' });
+
   const ip = req.socket.remoteAddress;
   const i = intentos.get(ip) || { fallidos: 0, bloqueadoHasta: 0 };
   if (i.bloqueadoHasta > Date.now()) {
     return json(res, 429, { error: `Demasiados intentos. Espera ${Math.ceil((i.bloqueadoHasta - Date.now()) / 1000)} s.` });
   }
-  let datos;
-  try { datos = JSON.parse(await leerCuerpo(req, 2048)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
-  if (!claveCorrecta(datos.clave || '')) {
+  const clave = String(datos.clave || '');
+  const alcance = coincide(clave, HUELLA_ADMIN) ? '*' : (ev && coincide(clave, ev.huellaClave) ? ev.slug : null);
+  if (!alcance) {
     i.fallidos++;
     if (i.fallidos >= MAX_INTENTOS) { i.fallidos = 0; i.bloqueadoHasta = Date.now() + 60 * 1000; }
     intentos.set(ip, i);
@@ -221,13 +292,13 @@ async function iniciarSesion(req, res) {
   intentos.delete(ip);
   const sesion = crypto.randomBytes(24).toString('hex');
   const vence = Date.now() + DURACION_SESION;
-  sesiones.set(sesion, vence);
-  json(res, 200, { sesion, vence });
+  sesiones.set(sesion, { vence, alcance });
+  json(res, 200, { sesion, vence, alcance });
 }
 
-// POST /api/escena  { asignaciones: [{ zonas: ['G1'] | 'todas', capa: {...} }], adelantoMs }
-async function aplicarEscena(req, res) {
-  if (!sesionValida(req.headers['x-sesion'])) return json(res, 401, { error: 'Sesión inválida o vencida: vuelve a ingresar la clave' });
+// POST /api/e/<evento>/escena  { asignaciones: [{ zonas: ['G1'] | 'todas', capa: {...} }], adelantoMs }
+async function aplicarEscena(ev, req, res) {
+  if (!sesionValida(req.headers['x-sesion'], ev)) return json(res, 401, { error: 'Sesión inválida o vencida: vuelve a ingresar la clave' });
   let datos;
   try { datos = JSON.parse(await leerCuerpo(req)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
   if (!Array.isArray(datos.asignaciones)) return json(res, 400, { error: 'faltan asignaciones' });
@@ -236,18 +307,18 @@ async function aplicarEscena(req, res) {
   const adelanto = Math.min(5000, Math.max(0, Number(datos.adelantoMs) || 300));
   const inicio = Date.now() + adelanto;
   for (const a of datos.asignaciones) {
-    const zonas = a.zonas === 'todas' ? ZONAS : (Array.isArray(a.zonas) ? a.zonas.filter((z) => ZONAS.includes(z)) : []);
-    for (const z of zonas) estado.capas[z] = nuevaCapa(a.capa || {}, inicio);
+    const zonas = a.zonas === 'todas' ? ev.zonas : (Array.isArray(a.zonas) ? a.zonas.filter((z) => ev.zonas.includes(z)) : []);
+    for (const z of zonas) ev.estado.capas[z] = nuevaCapa(a.capa || {}, inicio);
   }
-  estado.version++;
-  difundirEstado();
-  json(res, 200, { ok: true, version: estado.version, inicio });
+  ev.estado.version++;
+  difundirEstado(ev);
+  json(res, 200, { ok: true, version: ev.estado.version, inicio });
 }
 
-function eventos(req, res, url) {
+function suscribir(ev, req, res, url) {
   const rol = url.searchParams.get('rol') || 'publico';
   // El operador y el simulador ven conteos y ocupación: requieren sesión
-  if (OBSERVADORES.has(rol) && !sesionValida(url.searchParams.get('sesion'))) {
+  if (OBSERVADORES.has(rol) && !sesionValida(url.searchParams.get('sesion'), ev)) {
     return json(res, 401, { error: 'Sesión inválida o vencida' });
   }
   res.writeHead(200, {
@@ -257,13 +328,28 @@ function eventos(req, res, url) {
     'X-Accel-Buffering': 'no',
   });
   res.write('retry: 2000\n\n');
-  const cliente = { res, rol, zona: url.searchParams.get('zona') };
-  if (cliente.rol === 'publico') cliente.ubicacion = ubicacionDe(url.searchParams);
+  const cliente = { res, ev, rol, zona: url.searchParams.get('zona') };
+  if (rol === 'publico') cliente.ubicacion = ubicacionDe(ev, url.searchParams);
   clientes.add(cliente);
-  enviar(res, 'estado', estado);
-  if (cliente.rol === 'operador') enviar(res, 'stats', stats());
-  if (OBSERVADORES.has(cliente.rol)) enviar(res, 'ocupacion', ocupacion());
+  enviar(res, 'estado', ev.estado);
+  if (rol === 'operador') enviar(res, 'stats', stats(ev));
+  if (OBSERVADORES.has(rol)) enviar(res, 'ocupacion', ocupacion(ev));
   req.on('close', () => clientes.delete(cliente));
+}
+
+// /api/e/<evento>/<accion>
+function apiEvento(ev, accion, req, res, url) {
+  switch (accion) {
+    case 'evento': return json(res, 200, { ...ev.def, situacion: situacion(ev.def), requiereClave: requiereClave(ev) });
+    case 'recinto':
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' });
+      return res.end(ev.json);
+    case 'events': return suscribir(ev, req, res, url);
+    case 'estado': return json(res, 200, ev.estado);
+    case 'red': return json(res, 200, { urls: urlsEvento(ev) });
+    case 'escena': return req.method === 'POST' ? aplicarEscena(ev, req, res) : json(res, 405, { error: 'Usa POST' });
+    default: return json(res, 404, { error: 'No existe' });
+  }
 }
 
 function estatico(res, archivo) {
@@ -279,19 +365,40 @@ function estatico(res, archivo) {
 const servidor = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
+  const partes = p.split('/').filter(Boolean);
+
+  // API general
   if (p === '/api/time') return json(res, 200, { t: Date.now() });
-  if (p === '/api/recinto') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' }); return res.end(recintoJson); }
-  if (p === '/api/events') return eventos(req, res, url);
-  if (p === '/api/estado') return json(res, 200, estado);
-  if (p === '/api/red') {
-    const urls = process.env.URL_PUBLICO ? [process.env.URL_PUBLICO] : ipsLocales().map((i) => urlPublico(i.ip));
-    return json(res, 200, { urls });
+  if (p === '/api/eventos') {
+    return json(res, 200, [...eventos.values()].filter((e) => !e.def.oculto).map(resumenPublico)
+      .sort((a, b) => String(a.fechaISO).localeCompare(String(b.fechaISO))));
   }
-  if (p === '/api/escena' && req.method === 'POST') return aplicarEscena(req, res);
   if (p === '/api/login' && req.method === 'POST') return iniciarSesion(req, res);
-  if (p === '/api/sesion') return json(res, 200, { requiereClave: !!CLAVE_ADMIN, valida: sesionValida(req.headers['x-sesion']) });
+  if (p === '/api/sesion') {
+    const ev = eventos.get(url.searchParams.get('evento'));
+    return json(res, 200, { requiereClave: requiereClave(ev), valida: sesionValida(req.headers['x-sesion'], ev) });
+  }
   if (p === '/api/logout' && req.method === 'POST') { sesiones.delete(req.headers['x-sesion']); return json(res, 200, { ok: true }); }
-  if (RUTAS[p]) return estatico(res, RUTAS[p]);
+
+  // API de un evento
+  if (partes[0] === 'api' && partes[1] === 'e') {
+    const ev = eventos.get(partes[2]);
+    if (!ev) return json(res, 404, { error: 'Evento no encontrado' });
+    return apiEvento(ev, partes[3], req, res, url);
+  }
+  if (partes[0] === 'api') return json(res, 404, { error: 'No existe' });
+
+  // Páginas
+  if (p === '/') return estatico(res, 'eventos.html');
+  // Direcciones de antes de los multieventos: /operador, /simulador, /conectar → al evento por defecto
+  if (partes.length === 1 && PAGINAS[partes[0]]) return redirigir(res, `/${eventoPorDefecto().slug}/${partes[0]}${url.search}`);
+  if (partes.length >= 1 && SLUG.test(partes[0]) && !RESERVADOS.has(partes[0])) {
+    const ev = eventos.get(partes[0]);
+    if (!ev) return redirigir(res, '/');
+    if (partes.length === 1) return estatico(res, 'index.html');
+    if (partes.length === 2 && PAGINAS[partes[1]]) return estatico(res, PAGINAS[partes[1]]);
+    return redirigir(res, `/${ev.slug}`);
+  }
   return estatico(res, p.slice(1));
 });
 
@@ -303,19 +410,20 @@ servidor.on('error', (err) => {
 
 servidor.listen(PORT, '0.0.0.0', () => {
   const ips = ipsLocales();
-  console.log(`\nPixel Crowd — ${recinto.nombre}\n`);
-  console.log(`  Operador (en este PC):   http://localhost:${PORT}/operador${CLAVE_ADMIN ? '  (protegido con clave)' : ''}`);
-  if (!CLAVE_ADMIN) console.log('  ATENCIÓN: el panel no tiene clave. Crea clave-admin.txt o define CLAVE_ADMIN.');
-  console.log(`  QR para el público:      http://localhost:${PORT}/conectar`);
-  console.log(`  Simulador:               http://localhost:${PORT}/simulador\n`);
-  if (ips.length) {
-    console.log(`  >> Teléfonos (misma WiFi): ${urlPublico(ips[0].ip)}   [${ips[0].nombre}]`);
-    for (const i of ips.slice(1)) console.log(`     o también:             ${urlPublico(i.ip)}   [${i.nombre}]`);
-  } else {
-    console.log('  No se detectó una red local. Conecta el PC a la WiFi y reinicia.');
+  const base = ips.length ? urlPublico(ips[0].ip) : `http://localhost:${PORT}/`;
+  console.log(`\nPixel Crowd — ${eventos.size} evento(s)\n`);
+  for (const ev of eventos.values()) {
+    const marcas = [situacion(ev.def), ev.def.oculto ? 'oculto' : '', ev.huellaClave ? 'clave propia' : ''].filter(Boolean).join(', ');
+    console.log(`  ${ev.def.titulo} (${marcas})`);
+    console.log(`    Público:   ${base}${ev.slug}`);
+    console.log(`    Operador:  http://localhost:${PORT}/${ev.slug}/operador${requiereClave(ev) ? '  (con clave)' : ''}`);
+    console.log(`    QR:        http://localhost:${PORT}/${ev.slug}/conectar\n`);
   }
-  console.log('\n  Ctrl+C para detener.\n');
-  if (process.env.ABRIR_NAVEGADOR) abrirNavegador([`http://localhost:${PORT}/conectar`, `http://localhost:${PORT}/operador`]);
+  if (!CLAVE_ADMIN) console.log('  ATENCIÓN: no hay clave general. Crea clave-admin.txt o define CLAVE_ADMIN.\n');
+  if (!ips.length) console.log('  No se detectó una red local. Conecta el PC a la WiFi y reinicia.\n');
+  console.log('  Ctrl+C para detener.\n');
+  const ev = eventoPorDefecto();
+  if (process.env.ABRIR_NAVEGADOR) abrirNavegador([`http://localhost:${PORT}/${ev.slug}/conectar`, `http://localhost:${PORT}/${ev.slug}/operador`]);
 });
 
 function abrirNavegador(urls) {

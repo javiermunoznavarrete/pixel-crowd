@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete · SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md) -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15122A">
+<meta name="description" content="Pixel Crowd: tu teléfono es un píxel del show. Sin app, desde el navegador.">
+<title>Pixel Crowd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --tinta: #15122A; --bruma: #262046; --brillo: #FFF1E0; --zorro: #FF2E4D; --lila: #A39DCC; --borde: #3A3366;
+    --display: "Unbounded", system-ui, sans-serif;
+    --cuerpo: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--tinta); color: var(--brillo); font: 17px/1.5 var(--cuerpo); }
+  main { max-width: 520px; margin: 0 auto; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); }
+  h1, h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(30px, 8.5vw, 40px); line-height: 1.08; margin: 22px 0 14px; }
+  h2 { font-size: 22px; line-height: 1.2; margin: 40px 0 12px; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--brillo); outline-offset: 3px; border-radius: 6px; }
+  .marca { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 17px; }
+  .marca .logo { width: 22px; height: 22px; }
+  #hero { display: block; width: 100%; margin-top: 18px; border-radius: 18px; }
+  .intro { font-size: 18px; margin: 0; max-width: 34ch; }
+
+  .shows { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .show a { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 16px 18px;
+    border-radius: 16px; background: var(--bruma); text-decoration: none; }
+  .show a:active { transform: scale(0.99); }
+  .show .titulo { font-family: var(--display); font-weight: 700; font-size: 19px; line-height: 1.2; }
+  .show .donde { color: var(--lila); font-size: 15px; margin-top: 2px; }
+  .show .ir { font-family: var(--display); font-weight: 700; font-size: 14px; padding: 8px 14px; border-radius: 999px;
+    background: var(--zorro); color: #fff; white-space: nowrap; }
+  .show.hoy a { box-shadow: inset 4px 0 0 var(--zorro); }
+  .show.hoy .donde strong { color: var(--zorro); }
+  .anteriores .show a { background: transparent; border: 1px solid var(--borde); }
+  .anteriores .titulo { font-size: 16px; color: var(--lila); }
+  .anteriores .ir { background: none; color: var(--lila); padding: 0; }
+  .vacio { color: var(--lila); }
+
+  .pie { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--borde); color: var(--lila); font-size: 14px; }
+  .pie p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="0" width="3" height="3" fill="#FFF1E0"/><rect x="8" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="0" y="4" width="3" height="3" fill="#FFF1E0"/><rect x="4" y="4" width="3" height="3" fill="#FF2E4D"/><rect x="8" y="4" width="3" height="3" fill="#3A3366"/><rect x="0" y="8" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="8" width="3" height="3" fill="#3A3366"/><rect x="8" y="8" width="3" height="3" fill="#FFF1E0"/></svg>pixel crowd</div>
+
+  <canvas id="hero" role="img" aria-label="Miles de teléfonos encendidos forman una tela roja que flamea"></canvas>
+  <h1>El público es la pantalla.</h1>
+  <p class="intro">En cada show, los teléfonos del público se encienden juntos: olas, colores y una bandera que se ve desde el escenario. Sin app ni pulseras, desde el navegador.</p>
+
+  <h2>Próximos shows</h2>
+  <ul class="shows" id="proximos"></ul>
+  <p class="vacio" id="sin-proximos" hidden>No hay shows anunciados por ahora. Si vas a uno, entra con el QR que se muestra en el recinto.</p>
+
+  <div class="anteriores" id="bloque-anteriores" hidden>
+    <h2>Shows anteriores</h2>
+    <ul class="shows" id="anteriores"></ul>
+  </div>
+
+  <footer class="pie">
+    <p>Pixel Crowd es un proyecto de Javier Julian Muñoz Navarrete, de uso no comercial. <a href="https://github.com/javiermunoznavarrete/pixel-crowd" target="_blank" rel="noopener">Ver el código</a>.</p>
+    <p>Licencias comerciales y contratación del servicio: <a href="mailto:javier_munoz_navarrete@hotmail.com">javier_munoz_navarrete@hotmail.com</a></p>
+  </footer>
+</main>
+
+<script src="/show.js"></script>
+<script src="/portada.js"></script>
+<script>
+(async function () {
+  const $ = (id) => document.getElementById(id);
+  Portada.hero($('hero'));
+
+  const texto = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function fila(e) {
+    const li = document.createElement('li');
+    li.className = 'show' + (e.situacion === 'hoy' ? ' hoy' : '');
+    const cuando = e.situacion === 'hoy' ? '<strong>Hoy</strong>' : texto(e.fecha);
+    const accion = e.situacion === 'terminado' ? 'Terminó' : e.situacion === 'hoy' ? 'Entrar' : 'Ver';
+    li.innerHTML = `<a href="/${encodeURIComponent(e.slug)}">
+      <div><div class="titulo">${texto(e.titulo)}</div><div class="donde">${texto(e.lugar)}${cuando ? ', ' + cuando : ''}</div></div>
+      <span class="ir">${accion}</span></a>`;
+    return li;
+  }
+
+  try {
+    const lista = await (await fetch('/api/eventos', { cache: 'no-store' })).json();
+    const proximos = lista.filter((e) => e.situacion !== 'terminado');
+    const anteriores = lista.filter((e) => e.situacion === 'terminado').reverse();
+    proximos.forEach((e) => $('proximos').appendChild(fila(e)));
+    anteriores.forEach((e) => $('anteriores').appendChild(fila(e)));
+    $('sin-proximos').hidden = proximos.length > 0;
+    $('bloque-anteriores').hidden = anteriores.length === 0;
+  } catch (e) {
+    $('sin-proximos').textContent = 'No se pudo cargar la lista de shows. Revisa tu conexión y recarga la página.';
+    $('sin-proximos').hidden = false;
+  }
+})();
+</script>
+</body>
+</html>

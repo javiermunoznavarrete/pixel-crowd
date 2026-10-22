@@ -9,6 +9,12 @@
 
   const MAX_HZ_ESTROBO = 3; // límite por seguridad fotosensible
 
+  // ---------- Evento ----------
+  // Las páginas viven bajo /<evento>/…; la API del evento está en /api/e/<evento>/…
+  const primerTramo = typeof location !== 'undefined' ? location.pathname.split('/').filter(Boolean)[0] : '';
+  const evento = primerTramo && /^[a-z0-9][a-z0-9-]{1,60}$/.test(primerTramo) ? primerTramo : '';
+  const api = (ruta) => `/api/e/${evento}${ruta}`;
+
   // ---------- Reloj sincronizado (estilo NTP) ----------
   const reloj = { offset: 0, rtt: null };
 
@@ -421,7 +427,7 @@
     if (ubicacion) {
       for (const k of ['fila', 'asiento', 'profundidad', 'lado']) if (ubicacion[k] !== undefined) q.set(k, ubicacion[k]);
     }
-    const es = new EventSource('/api/events?' + q);
+    const es = new EventSource(api('/events?') + q);
     es.addEventListener('estado', (e) => alEstado && alEstado(JSON.parse(e.data)));
     es.addEventListener('stats', (e) => alStats && alStats(JSON.parse(e.data)));
     es.addEventListener('ocupacion', (e) => alOcupacion && alOcupacion(decodificarOcupacion(JSON.parse(e.data))));
@@ -452,15 +458,22 @@
     return indice;
   }
 
+  // Datos públicos del evento: título, fecha, lugar, presets, situación (proximo | hoy | terminado)
+  async function cargarEvento() {
+    const r = await fetch(api('/evento'), { cache: 'no-store' });
+    if (!r.ok) throw new Error('Evento no encontrado');
+    return r.json();
+  }
+
   async function cargarRecinto() {
-    const r = await fetch('/api/recinto');
+    const r = await fetch(api('/recinto'));
     return prepararRecinto(await r.json());
   }
 
   const css = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
 
   window.Show = {
-    reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, vistaEn, colorEn, css, indiceAsientos,
+    evento, api, cargarEvento, reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, vistaEn, colorEn, css, indiceAsientos,
     crearReproductor, conectar, EFECTOS, PROFUNDIDADES, LADOS, MAX_HZ_ESTROBO,
   };
 })();

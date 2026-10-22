@@ -10,38 +10,47 @@ const PORT = 3900 + Math.floor(Math.random() * 90);
 const BASE = `http://localhost:${PORT}`;
 let proc;
 
+// Eventos de prueba (test/fixtures/eventos): prueba-a y prueba-b usan el recinto demo; prueba-b tiene
+// clave propia; prueba-vieja es pasada y oculta.
 test.before(async () => {
-  proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, CLAVE_ADMIN: 'secreto', RECINTO: 'demo' } });
+  proc = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: {
+      ...process.env, PORT, CLAVE_ADMIN: 'secreto', CLAVE_EVENTO_PRUEBA_B: 'clave-b', URL_PUBLICO: 'https://ejemplo.cl',
+      EVENTOS_DIR: path.join(__dirname, 'fixtures', 'eventos'),
+      RECINTOS_DIR: path.join(__dirname, '..', 'data', 'recintos'),
+    },
+  });
   await new Promise((resolve, reject) => {
     proc.stdout.on('data', (d) => String(d).includes('Ctrl+C') && resolve());
     proc.on('exit', (c) => reject(new Error('el servidor terminó con código ' + c)));
   });
-  // Sesión del administrador para los tests que la necesitan (login está definido más abajo)
+  // Sesión con la clave general para los tests que la necesitan (login está definido más abajo)
   SESION = (await (await login('secreto')).json()).sesion;
 });
 test.after(() => proc.kill());
 
-const login = (clave) => fetch(BASE + '/api/login', {
-  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave }),
+const login = (clave, evento) => fetch(BASE + '/api/login', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave, evento }),
 });
 let SESION = '';
 
-const escena = (cuerpo, sesion = SESION) => fetch(BASE + '/api/escena', {
+const escena = (cuerpo, sesion = SESION, ev = 'prueba-a') => fetch(`${BASE}/api/e/${ev}/escena`, {
   method: 'POST', headers: { 'Content-Type': 'application/json', 'x-sesion': sesion }, body: JSON.stringify(cuerpo),
 });
+const estadoDe = async (ev) => (await fetch(`${BASE}/api/e/${ev}/estado`)).json();
 
 // Abre un stream SSE y devuelve los eventos recibidos a medida que llegan.
-function abrirSSE(query) {
+function abrirSSE(query, ev = 'prueba-a') {
   const eventos = [];
-  const req = http.get(`${BASE}/api/events?${query}`, (res) => {
+  const req = http.get(`${BASE}/api/e/${ev}/events?${query}`, (res) => {
     let buf = '';
     res.on('data', (d) => {
       buf += d;
       let i;
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const bloque = buf.slice(0, i); buf = buf.slice(i + 2);
-        const ev = /^event: (.+)$/m.exec(bloque), data = /^data: (.+)$/m.exec(bloque);
-        if (ev && data) eventos.push({ evento: ev[1], datos: JSON.parse(data[1]) });
+        const evento = /^event: (.+)$/m.exec(bloque), data = /^data: (.+)$/m.exec(bloque);
+        if (evento && data) eventos.push({ evento: evento[1], datos: JSON.parse(data[1]) });
       }
     });
   });
@@ -49,11 +58,38 @@ function abrirSSE(query) {
 }
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test('sirve las páginas y el recinto con los asientos del CSV', async () => {
-  for (const p of ['/', '/operador', '/simulador', '/show.js']) assert.strictEqual((await fetch(BASE + p)).status, 200, p);
-  const recinto = await (await fetch(BASE + '/api/recinto')).json();
-  const g1 = recinto.sectores.find((s) => s.id === 'G1');
-  assert.strictEqual(g1.asientos.length, 12 * 85);
+test('sirve la lista de eventos, las páginas de cada evento y su recinto', async () => {
+  for (const p of ['/', '/prueba-a', '/prueba-a/operador', '/prueba-a/simulador', '/prueba-a/conectar', '/show.js']) {
+    assert.strictEqual((await fetch(BASE + p)).status, 200, p);
+  }
+  const recinto = await (await fetch(BASE + '/api/e/prueba-a/recinto')).json();
+  assert.strictEqual(recinto.sectores.find((s) => s.id === 'G1').asientos.length, 12 * 85);
+});
+
+test('la lista pública muestra los eventos visibles ordenados por fecha, sin los ocultos', async () => {
+  const lista = await (await fetch(BASE + '/api/eventos')).json();
+  assert.deepStrictEqual(lista.map((e) => e.slug), ['prueba-a', 'prueba-b']);
+  assert.strictEqual(lista[0].situacion, 'proximo');
+  assert.strictEqual(lista[1].requiereClave, true);
+  const vieja = await (await fetch(BASE + '/api/e/prueba-vieja/evento')).json();
+  assert.strictEqual(vieja.situacion, 'terminado'); // oculto de la lista, pero su página sigue existiendo
+});
+
+test('el evento entrega sus presets y no expone claves', async () => {
+  const ev = await (await fetch(BASE + '/api/e/prueba-a/evento')).json();
+  assert.strictEqual(ev.titulo, 'Prueba A');
+  assert.strictEqual(ev.presets.length, 1);
+  const b = await (await fetch(BASE + '/api/e/prueba-b/evento')).text();
+  assert.ok(!b.includes('clave-b'));
+});
+
+test('las direcciones antiguas redirigen al evento por defecto y los eventos inexistentes a la lista', async () => {
+  const r = await fetch(BASE + '/operador', { redirect: 'manual' });
+  assert.strictEqual(r.status, 302);
+  assert.strictEqual(r.headers.get('location'), '/prueba-a/operador');
+  const n = await fetch(BASE + '/no-existe', { redirect: 'manual' });
+  assert.strictEqual(n.headers.get('location'), '/');
+  assert.strictEqual((await fetch(BASE + '/api/e/no-existe/estado')).status, 404);
 });
 
 test('no sirve archivos fuera de public/', async () => {
@@ -70,17 +106,28 @@ test('login: clave incorrecta 401, correcta entrega sesión válida; cerrar sesi
   assert.strictEqual((await login('Concierto2025')).status, 401);
   const r = await login('secreto');
   assert.strictEqual(r.status, 200);
-  const { sesion } = await r.json();
+  const { sesion, alcance } = await r.json();
   assert.match(sesion, /^[0-9a-f]{48}$/);
-  const estado = async () => (await fetch(BASE + '/api/sesion', { headers: { 'x-sesion': sesion } })).json();
+  assert.strictEqual(alcance, '*');
+  const estado = async () => (await fetch(BASE + '/api/sesion?evento=prueba-a', { headers: { 'x-sesion': sesion } })).json();
   assert.deepStrictEqual(await estado(), { requiereClave: true, valida: true });
   await fetch(BASE + '/api/logout', { method: 'POST', headers: { 'x-sesion': sesion } });
   assert.strictEqual((await estado()).valida, false);
 });
 
+test('la clave de un evento solo sirve para ese evento; la general sirve para todos', async () => {
+  assert.strictEqual((await login('clave-b', 'prueba-a')).status, 401); // la clave de B no abre A
+  const r = await login('clave-b', 'prueba-b');
+  const { sesion, alcance } = await r.json();
+  assert.strictEqual(alcance, 'prueba-b');
+  assert.strictEqual((await escena({ asignaciones: [] }, sesion, 'prueba-b')).status, 200);
+  assert.strictEqual((await escena({ asignaciones: [] }, sesion, 'prueba-a')).status, 401);
+  assert.strictEqual((await escena({ asignaciones: [] }, SESION, 'prueba-b')).status, 200);
+});
+
 test('el panel y el simulador no reciben datos sin sesión', async () => {
   for (const rol of ['operador', 'simulador']) {
-    const r = await fetch(BASE + '/api/events?rol=' + rol);
+    const r = await fetch(BASE + '/api/e/prueba-a/events?rol=' + rol);
     assert.strictEqual(r.status, 401, rol);
   }
 });
@@ -100,17 +147,36 @@ test('una escena llega por SSE solo a las zonas indicadas, programada en el futu
   assert.notStrictEqual(ultimo.capas.G2.efecto, 'ola');
 });
 
+test('dos eventos no se mezclan: escenas, teléfonos y conteos van por separado', async () => {
+  const telA = abrirSSE('rol=publico&zona=G3', 'prueba-a');
+  const telB = abrirSSE('rol=publico&zona=G3', 'prueba-b');
+  await esperar(200);
+  await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#123456' } }] }, SESION, 'prueba-b');
+  await esperar(200);
+  // El teléfono de A no recibió la escena de B
+  assert.ok(!telA.eventos.some((e) => e.evento === 'estado' && e.datos.capas.G3.color === '#123456'));
+  assert.ok(telB.eventos.some((e) => e.evento === 'estado' && e.datos.capas.G3.color === '#123456'));
+  assert.notStrictEqual((await estadoDe('prueba-a')).capas.G3.color, '#123456');
+  // El operador de B cuenta solo los teléfonos de B
+  const telB2 = abrirSSE('rol=publico&zona=G1', 'prueba-b');
+  const opB = abrirSSE('rol=operador&sesion=' + SESION, 'prueba-b');
+  await esperar(300);
+  const stats = opB.eventos.filter((e) => e.evento === 'stats').at(-1).datos;
+  telA.cerrar(); telB.cerrar(); telB2.cerrar(); opB.cerrar();
+  assert.strictEqual(stats.publico, 2);
+});
+
 test('sanea parámetros peligrosos o inválidos', async () => {
   await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'hackeo', color: 'red', hz: 40 } }] });
   await escena({ asignaciones: [{ zonas: ['CANCHA'], capa: { efecto: 'estrobo', hz: 40 } }] });
-  const estado = await (await fetch(BASE + '/api/estado')).json();
+  const estado = await estadoDe('prueba-a');
   assert.strictEqual(estado.capas.G2.efecto, 'solido');
   assert.strictEqual(estado.capas.G2.color, '#ffffff');
   assert.strictEqual(estado.capas.CANCHA.hz, 3);
 });
 
 test('el operador recibe la ocupación real: asiento declarado y subzona de cancha', async () => {
-  const recinto = await (await fetch(BASE + '/api/recinto')).json();
+  const recinto = await (await fetch(BASE + '/api/e/prueba-a/recinto')).json();
   // Índice global del asiento G2 fila C asiento 40 (mismo orden que el servidor)
   let idx = 0, buscado = -1;
   for (const s of recinto.sectores) if (s.tipo === 'numerada') for (const [f, a] of s.asientos) {
@@ -132,13 +198,9 @@ test('el operador recibe la ocupación real: asiento declarado y subzona de canc
   assert.strictEqual(o.generales.CANCHA['adelante-izq'], 1);
 });
 
-test('el operador recibe el conteo de teléfonos por zona', async () => {
-  const tel = abrirSSE('rol=publico&zona=G3');
-  const op = abrirSSE('rol=operador&sesion=' + SESION);
-  await esperar(300);
-  const stats = op.eventos.filter((e) => e.evento === 'stats').at(-1).datos;
-  tel.cerrar(); op.cerrar();
-  assert.ok(stats.porZona.G3 >= 1);
+test('el QR de cada evento apunta a su propia dirección', async () => {
+  const { urls } = await (await fetch(BASE + '/api/e/prueba-b/red')).json();
+  assert.deepStrictEqual(urls, ['https://ejemplo.cl/prueba-b']);
 });
 
 // Al final: deja la IP bloqueada un minuto
