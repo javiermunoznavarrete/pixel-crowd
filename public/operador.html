@@ -46,6 +46,12 @@
   .ajustes .param input { grid-column: 2; }
   #msg { min-height: 18px; font-size: 13px; color: var(--suave); margin-top: 8px; }
   .vista { display: flex; flex-direction: column; min-height: 100vh; }
+  .vista > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--suave); margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--borde); }
+  .vista.plegado { min-height: 0; }
+  @media (max-width: 900px) {
+    aside { border-right: 0; border-bottom: 1px solid var(--borde); }
+    section > h2 { padding: 4px 0; } /* área de toque más cómoda */
+  }
   .vista iframe { flex: 1; width: 100%; border: 0; min-height: 600px; }
   [hidden] { display: none !important; }
 </style>
@@ -57,7 +63,7 @@
     <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos ·
       <a href="/conectar" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>
 
-    <section>
+    <section data-plegable="zonas" data-plegado-movil>
       <h2>Zonas</h2>
       <div class="zonas" id="zonas"></div>
       <div class="chips" style="margin-top:8px">
@@ -66,8 +72,8 @@
       </div>
     </section>
 
-    <section>
-      <h2>Efecto</h2>
+    <section data-plegable="efecto" data-plegado-movil>
+      <h2>Efecto manual</h2>
       <div class="chips" id="efectos"></div>
       <div id="params" style="margin-top:8px">
         <div class="param" data-p="color"><label>Color</label><input type="color" id="color" value="#ff2d55"></div>
@@ -96,25 +102,27 @@
       <div id="msg"></div>
     </section>
 
-    <section>
+    <section data-plegable="escenas">
       <h2>Escenas rápidas</h2>
       <div class="tabs" id="tabs" role="tablist"></div>
       <div class="info-concierto" id="info-concierto" hidden></div>
       <div class="escenas" id="escenas"></div>
     </section>
 
-    <section class="ajustes">
+    <section class="ajustes" data-plegable="ajustes" data-plegado-movil>
       <h2>Ajustes</h2>
       <div class="param"><label>Adelanto (ms)</label><input type="text" id="adelanto" value="300" inputmode="numeric"></div>
       <div class="param"><label>Token</label><input type="text" id="token" placeholder="solo si el servidor usa OP_TOKEN"></div>
     </section>
   </aside>
 
-  <div class="vista">
+  <div class="vista" data-plegable="vista">
+    <h2>Vista previa del estadio</h2>
     <iframe src="/simulador?embed" title="Vista previa del estadio"></iframe>
   </div>
 </div>
 
+<script src="/plegables.js"></script>
 <script src="/show.js"></script>
 <script src="/conciertos/babymetal.js"></script>
 <script>

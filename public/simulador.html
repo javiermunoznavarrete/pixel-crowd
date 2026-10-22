@@ -47,21 +47,22 @@
 <div class="indicador" id="indicador"></div>
 <main>
   <div>
-    <div class="caja">
+    <div class="caja" data-plegable="aerea">
       <h2>Vista aérea</h2>
       <canvas id="mapa"></canvas>
     </div>
-    <div class="caja" style="margin-top:16px">
+    <div class="caja" style="margin-top:16px" data-plegable="escena">
       <h2>Vista desde el escenario (cómo ve la banda a todo el público)</h2>
       <canvas id="escena"></canvas>
     </div>
   </div>
-  <div class="caja">
+  <div class="caja" data-plegable="mosaicos" data-plegado-movil>
     <h2>Sectores numerados vistos de frente (mosaicos)</h2>
     <div id="frontales"></div>
   </div>
 </main>
 
+<script src="/plegables.js"></script>
 <script src="/show.js"></script>
 <script>
 (async function () {
