@@ -10,6 +10,7 @@ const fs = require('fs');
 const os = require('os');
 const PORT = 3900 + Math.floor(Math.random() * 90);
 const DIR_APORTES = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-aportes-'));
+const DIR_ESTADISTICAS = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-estadisticas-'));
 const BASE = `http://localhost:${PORT}`;
 let proc;
 
@@ -22,6 +23,8 @@ test.before(async () => {
       EVENTOS_DIR: path.join(__dirname, 'fixtures', 'eventos'),
       RECINTOS_DIR: path.join(__dirname, '..', 'data', 'recintos'),
       DATA_APORTES: DIR_APORTES,
+      // Sesiones de show rápidas para el test: más de 5 teléfonos, cierre tras 4 s bajo el umbral, muestra cada 1 s
+      DATA_ESTADISTICAS: DIR_ESTADISTICAS, UMBRAL_SESION: '5', CIERRE_SESION_MS: '4000', MUESTRA_MS: '1000',
     },
   });
   await new Promise((resolve, reject) => {
@@ -317,6 +320,40 @@ test('consultas a /estado: 304 si no cambió, hora del servidor en cada respuest
   const r3 = await fetch(`${BASE}/api/e/prueba-a/estado?${q}`, { headers: { 'If-None-Match': etag } });
   assert.strictEqual(r3.status, 200);
   assert.strictEqual(capaDe(await r3.json(), 'CANCHA').color, '#abcdef');
+});
+
+test('estadísticas: una sesión empieza sobre el umbral, guarda el máximo y muestras, y se cierra al bajar', async () => {
+  const ev = 'prueba-b';
+  const telefonos = Array.from({ length: 7 }, (_, i) => abrirSSE(`rol=publico&zona=${i < 4 ? 'G1' : 'CANCHA'}&profundidad=medio&lado=centro`, ev));
+  await esperar(4500); // 2 vueltas del servidor sobre el umbral
+  let d = await (await fetch(`${BASE}/api/e/${ev}/estadisticas`, { headers: { 'x-sesion': SESION } })).json();
+  assert.strictEqual(d.sesiones.length, 1);
+  assert.strictEqual(d.sesiones[0].fin, null, 'sesión en curso');
+  assert.strictEqual(d.sesiones[0].pico.total, 7);
+  assert.strictEqual(d.sesiones[0].pico.porZona.G1, 4);
+  assert.ok(d.sesiones[0].muestras.length >= 2);
+  assert.ok(fs.existsSync(path.join(DIR_ESTADISTICAS, `${ev}.json`)), 'se guarda en disco');
+
+  // Bajo el umbral 4 s seguidos: la sesión se cierra, con el máximo intacto
+  telefonos.forEach((t) => t.cerrar());
+  await esperar(7000);
+  d = await (await fetch(`${BASE}/api/e/${ev}/estadisticas`, { headers: { 'x-sesion': SESION } })).json();
+  assert.strictEqual(d.sesiones.length, 1);
+  assert.ok(d.sesiones[0].fin > d.sesiones[0].inicio, 'sesión cerrada');
+  assert.strictEqual(d.sesiones[0].pico.total, 7);
+  const enDisco = JSON.parse(fs.readFileSync(path.join(DIR_ESTADISTICAS, `${ev}.json`), 'utf8'));
+  assert.ok(enDisco.sesiones[0].fin);
+
+  // CSV con una fila por muestra y una columna por zona; solo con sesión de operador
+  const csv = await (await fetch(`${BASE}/api/e/${ev}/estadisticas?formato=csv`, { headers: { 'x-sesion': SESION } })).text();
+  const [cabecera, primera] = csv.trim().split('\n');
+  assert.ok(cabecera.startsWith('sesion,hora,total,senal_debil,') && cabecera.includes('G1'));
+  assert.ok(/^1,\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+,/.test(primera));
+  assert.strictEqual((await fetch(`${BASE}/api/e/${ev}/estadisticas`)).status, 401);
+
+  // Un evento con pocos teléfonos (un ensayo) no crea sesiones
+  const a = await (await fetch(`${BASE}/api/e/prueba-a/estadisticas`, { headers: { 'x-sesion': SESION } })).json();
+  assert.strictEqual(a.sesiones.length, 0);
 });
 
 test('bloquea la IP un minuto tras 5 claves incorrectas seguidas', async () => {

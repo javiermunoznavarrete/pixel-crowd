@@ -257,6 +257,7 @@ setInterval(() => {
   for (const ev of eventos.values()) {
     podarColas(ev, t);
     const s = stats(ev);
+    registrarEstadisticas(ev, s, t);
     const o = ocupacion(ev);
     const oJson = JSON.stringify(o);
     const cambio = oJson !== ev.ultimaOcupacion;
@@ -286,6 +287,97 @@ function responderEstado(ev, req, res, url) {
   if (req.headers['if-none-match'] === etag) { res.writeHead(304, cabeceras); return res.end(); }
   res.writeHead(200, { ...cabeceras, 'Content-Type': 'application/json' });
   res.end(estadoJson(ev));
+}
+
+// ---------- Estadísticas de cada show ----------
+// Una "sesión" de show empieza cuando un evento supera UMBRAL_SESION teléfonos conectados (los ensayos y
+// pruebas chicas no cuentan) y termina cuando pasa CIERRE_SESION_MS seguidos en el umbral o por debajo; si
+// vuelve a subir antes (un intermedio, un reinicio del servidor), es la misma sesión. De cada sesión se
+// guarda el máximo con su hora y desglose por zona, y una muestra por minuto. Sin datos personales: solo
+// conteos. Un archivo JSON por evento en DATA_ESTADISTICAS (en Railway, el volumen /data).
+const DIR_ESTADISTICAS = process.env.DATA_ESTADISTICAS || path.join(__dirname, 'estadisticas');
+const UMBRAL_SESION = Number(process.env.UMBRAL_SESION) || 50;
+const CIERRE_SESION_MS = Number(process.env.CIERRE_SESION_MS) || 10 * 60 * 1000;
+const MUESTRA_MS = Number(process.env.MUESTRA_MS) || 60 * 1000;
+const GUARDADO_MS = 10 * 1000; // el máximo se escribe a disco a lo más cada 10 s
+
+const archivoEstadisticas = (slug) => path.join(DIR_ESTADISTICAS, `${slug}.json`);
+
+function estadisticasDe(ev) {
+  if (ev.estadisticas) return ev.estadisticas;
+  let datos = { sesiones: [] };
+  try { datos = JSON.parse(fs.readFileSync(archivoEstadisticas(ev.slug), 'utf8')); } catch { /* aún no hay */ }
+  // Una sesión que quedó abierta (el servidor se reinició a mitad del show) sigue si es reciente; si no, se cierra
+  const ultima = datos.sesiones.at(-1);
+  if (ultima && !ultima.fin && Date.now() - (ultima.actualizada || ultima.inicio) > CIERRE_SESION_MS) {
+    ultima.fin = ultima.actualizada || ultima.inicio;
+  }
+  return (ev.estadisticas = datos);
+}
+
+function guardarEstadisticas(ev) {
+  fs.mkdirSync(DIR_ESTADISTICAS, { recursive: true });
+  const destino = archivoEstadisticas(ev.slug);
+  fs.writeFileSync(destino + '.tmp', JSON.stringify(ev.estadisticas));
+  fs.renameSync(destino + '.tmp', destino); // reemplazo atómico: nunca queda un archivo a medias
+  ev.estadisticasGuardadas = Date.now();
+}
+
+function registrarEstadisticas(ev, s, t) {
+  const datos = estadisticasDe(ev);
+  let sesion = datos.sesiones.at(-1);
+  if (sesion && sesion.fin) sesion = null;
+  const sobre = s.publico > UMBRAL_SESION;
+  if (!sesion) {
+    if (!sobre) return;
+    sesion = { inicio: t, fin: null, pico: null, muestras: [], bajoDesde: null };
+    datos.sesiones.push(sesion);
+    console.log(`  Comienza una sesión de "${ev.def.titulo}": ${s.publico} teléfonos conectados`);
+  }
+  sesion.actualizada = t;
+  let cambio = false;
+  if (!sesion.pico || s.publico > sesion.pico.total) {
+    sesion.pico = { total: s.publico, t, porZona: s.porZona, porConsultas: s.porConsultas };
+    cambio = true;
+  }
+  const ultimaMuestra = sesion.muestras.at(-1);
+  if (!ultimaMuestra || t - ultimaMuestra.t >= MUESTRA_MS) {
+    sesion.muestras.push({ t, total: s.publico, porConsultas: s.porConsultas, porZona: s.porZona });
+    cambio = true;
+  }
+  if (sobre) sesion.bajoDesde = null;
+  else {
+    sesion.bajoDesde ||= t;
+    if (t - sesion.bajoDesde >= CIERRE_SESION_MS) {
+      sesion.fin = sesion.bajoDesde;
+      delete sesion.bajoDesde;
+      cambio = true;
+      console.log(`  Termina la sesión de "${ev.def.titulo}": máximo ${sesion.pico.total} teléfonos`);
+    }
+  }
+  if (cambio && (sesion.fin || !ev.estadisticasGuardadas || t - ev.estadisticasGuardadas >= GUARDADO_MS || sesion.muestras.at(-1).t === t)) {
+    try { guardarEstadisticas(ev); } catch (e) { console.error('  No se pudieron guardar las estadísticas:', e.message); }
+  }
+}
+
+// GET /api/e/<evento>/estadisticas[?formato=csv] — sesiones del show (solo el operador)
+function verEstadisticas(ev, req, res, url) {
+  if (!sesionValida(req.headers['x-sesion'], ev)) return json(res, 401, { error: 'Sesión inválida o vencida' });
+  const { sesiones } = estadisticasDe(ev);
+  if (url.searchParams.get('formato') === 'csv') {
+    const zonas = ev.zonas;
+    const hora = (t) => new Date(t).toLocaleString('sv-SE', { timeZone: ZONA_HORARIA }); // AAAA-MM-DD HH:MM:SS, hora de Chile
+    const filas = [['sesion', 'hora', 'total', 'senal_debil', ...zonas].join(',')];
+    sesiones.forEach((se, i) => {
+      for (const m of se.muestras) filas.push([i + 1, hora(m.t), m.total, m.porConsultas || 0, ...zonas.map((z) => m.porZona?.[z] || 0)].join(','));
+    });
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store',
+      'Content-Disposition': `attachment; filename="estadisticas-${ev.slug}.csv"`,
+    });
+    return res.end(filas.join('\n') + '\n');
+  }
+  json(res, 200, { umbral: UMBRAL_SESION, zonas: ev.zonas, sesiones });
 }
 
 // ---------- Aportes de números de silla ----------
@@ -553,6 +645,7 @@ function apiEvento(ev, accion, req, res, url) {
     case 'escena': return req.method === 'POST' ? aplicarEscena(ev, req, res) : json(res, 405, { error: 'Usa POST' });
     case 'aporte': return req.method === 'POST' ? recibirAporte(ev, req, res) : json(res, 405, { error: 'Usa POST' });
     case 'aportes': return verAportes(ev, req, res, url);
+    case 'estadisticas': return verEstadisticas(ev, req, res, url);
     default: return json(res, 404, { error: 'No existe' });
   }
 }

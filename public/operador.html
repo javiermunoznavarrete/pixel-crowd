@@ -28,6 +28,11 @@
   button { font: inherit; color: inherit; cursor: pointer; }
   .chip { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--borde); background: #1d1d28; }
   .chip.sel { background: var(--acento); border-color: var(--acento); color: #fff; }
+  .sesiones { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+  .sesiones button { width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--borde); background: #1d1d28; color: var(--texto); }
+  .sesiones button.sel { border-color: var(--acento); }
+  .sesiones strong { font-variant-numeric: tabular-nums; }
+  #grafico-sesion { width: 100%; height: 120px; display: block; margin: 6px 0 8px; }
   .param { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; margin: 8px 0; }
   .param label { color: var(--suave); }
   .param output { text-align: right; font-variant-numeric: tabular-nums; color: var(--suave); }
@@ -128,6 +133,18 @@
       <div class="info-concierto" id="info-concierto" hidden></div>
       <button class="aplicar" id="cortar" hidden style="margin:0 0 10px;background:#5a1020">■ Cortar secuencia (deja el efecto actual)</button>
       <div class="escenas" id="escenas"></div>
+    </section>
+
+    <section data-plegable="estadisticas" data-plegado-movil>
+      <h2>Estadísticas del show</h2>
+      <p class="info-concierto">Cada vez que hay más de <span id="umbral-sesion">50</span> teléfonos conectados se registra una sesión: el máximo con su hora y una muestra por minuto. Se guarda en el servidor, sin datos personales.</p>
+      <div id="est-resumen" class="info-concierto">Sin sesiones todavía.</div>
+      <ul class="sesiones" id="est-sesiones"></ul>
+      <canvas id="grafico-sesion" hidden aria-label="Teléfonos conectados por minuto durante la sesión"></canvas>
+      <div class="chips">
+        <button class="chip" id="est-actualizar" type="button">Actualizar</button>
+        <button class="chip" id="est-csv" type="button">Descargar CSV</button>
+      </div>
     </section>
 
     <section data-plegable="aportes" data-plegado-movil>
@@ -408,6 +425,84 @@
     URL.revokeObjectURL(enlace.href);
   };
   cargarAportes();
+
+  // ---- Estadísticas del show ----
+  const horaCL = (t) => new Date(t).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' });
+  const fechaCL = (t) => new Date(t).toLocaleDateString('es-CL', { timeZone: 'America/Santiago', day: 'numeric', month: 'short' });
+  const duracion = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+  let sesionVista = null;
+
+  function dibujarSesion(se) {
+    const c = $('grafico-sesion');
+    c.hidden = !se || se.muestras.length < 2;
+    if (c.hidden) return;
+    const ancho = c.clientWidth, alto = c.clientHeight, dpr = window.devicePixelRatio || 1;
+    c.width = ancho * dpr; c.height = alto * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    // El máximo se mide cada 2 s y las muestras cada minuto: se agrega a la curva para que la línea pase por él
+    const m = [...se.muestras.filter((p) => p.t !== se.pico.t), se.pico].sort((a, b) => a.t - b.t);
+    const t0 = m[0].t, t1 = m.at(-1).t, max = Math.max(...m.map((x) => x.total), 1);
+    const x = (t) => 4 + (ancho - 8) * (t - t0) / Math.max(1, t1 - t0);
+    const y = (v) => alto - 16 - (alto - 28) * v / max;
+    g.strokeStyle = '#2a2a38'; g.beginPath(); g.moveTo(0, y(0)); g.lineTo(ancho, y(0)); g.stroke();
+    g.strokeStyle = '#ff3d7f'; g.lineWidth = 2; g.beginPath();
+    m.forEach((p, i) => (i ? g.lineTo(x(p.t), y(p.total)) : g.moveTo(x(p.t), y(p.total))));
+    g.stroke();
+    // Marca del máximo
+    g.fillStyle = '#ff3d7f'; g.beginPath(); g.arc(x(se.pico.t), y(se.pico.total), 3.5, 0, 7); g.fill();
+    g.fillStyle = '#8f8fa6'; g.font = '11px system-ui';
+    g.fillText(horaCL(t0), 4, alto - 2);
+    const fin = horaCL(t1); g.fillText(fin, ancho - 4 - g.measureText(fin).width, alto - 2);
+    g.fillText(`máx ${se.pico.total.toLocaleString('es-CL')}`, 4, 11);
+  }
+
+  async function cargarEstadisticas() {
+    try {
+      const r = await fetch(Show.api('/estadisticas'), { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' });
+      if (!r.ok) throw new Error((await r.json()).error);
+      const d = await r.json();
+      $('umbral-sesion').textContent = d.umbral;
+      const lista = d.sesiones.slice().reverse(); // la más reciente primero
+      const enCurso = lista.find((se) => !se.fin);
+      $('est-resumen').innerHTML = !lista.length ? 'Sin sesiones todavía.'
+        : enCurso ? `<strong>Sesión en curso</strong> desde las ${horaCL(enCurso.inicio)} · máximo <strong>${enCurso.pico.total.toLocaleString('es-CL')}</strong> a las ${horaCL(enCurso.pico.t)}`
+        : `${lista.length} ${lista.length === 1 ? 'sesión registrada' : 'sesiones registradas'}`;
+      $('est-sesiones').innerHTML = '';
+      for (const se of lista) {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = `${fechaCL(se.inicio)}, ${horaCL(se.inicio)}–${se.fin ? horaCL(se.fin) : 'en curso'} (${duracion((se.fin || se.actualizada) - se.inicio)})<br>` +
+          `Máximo <strong>${se.pico.total.toLocaleString('es-CL')}</strong> teléfonos a las ${horaCL(se.pico.t)}` +
+          (se.pico.porConsultas ? ` · ${se.pico.porConsultas} con señal débil` : '');
+        b.onclick = () => { sesionVista = se.inicio; marcar(); };
+        b.dataset.inicio = se.inicio;
+        li.appendChild(b);
+        $('est-sesiones').appendChild(li);
+      }
+      const marcar = () => {
+        const se = lista.find((x) => x.inicio === sesionVista) || lista[0];
+        $('est-sesiones').querySelectorAll('button').forEach((b) => b.classList.toggle('sel', se && Number(b.dataset.inicio) === se.inicio));
+        dibujarSesion(se);
+      };
+      marcar();
+    } catch (e) {
+      $('est-resumen').textContent = 'No se pudieron cargar: ' + e.message;
+    }
+  }
+  $('est-actualizar').onclick = cargarEstadisticas;
+  $('est-csv').onclick = async () => {
+    const r = await fetch(Show.api('/estadisticas?formato=csv'), { headers: { 'x-sesion': Sesion.get() } });
+    if (!r.ok) { $('est-resumen').textContent = 'No se pudo descargar el CSV.'; return; }
+    const enlace = document.createElement('a');
+    enlace.href = URL.createObjectURL(await r.blob());
+    enlace.download = `estadisticas-${Show.evento}.csv`;
+    enlace.click();
+    URL.revokeObjectURL(enlace.href);
+  };
+  cargarEstadisticas();
+  setInterval(cargarEstadisticas, 60000); // durante el show, el máximo y la curva se actualizan solos
   Show.conectar({
     rol: 'operador',
     sesion: Sesion.get(),

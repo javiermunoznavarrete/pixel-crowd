@@ -140,6 +140,17 @@ Donde no hay mapa numerado (las graderías y palcos del Caupolicán, o cualquier
 - **Brillo y linterna:** la web no puede subir el brillo ni usar la linterna en iPhone. Eso requiere app nativa.
 - **Recintos curvos:** la grilla del mosaico usa el orden de los asientos dentro de cada fila. En galerías muy curvas conviene proyectar por coordenadas.
 
+## Estadísticas del show (internas)
+
+El servidor registra cada **sesión de show**: empieza cuando un evento supera **50 teléfonos conectados** (los ensayos chicos no cuentan) y termina cuando pasa 10 minutos seguidos en 50 o menos. Si vuelve a subir antes (un intermedio, un reinicio del servidor), es la misma sesión. De cada una guarda el **máximo** con su hora y el desglose por zona, y **una muestra por minuto** (total, por zona y cuántos con señal débil). Son solo conteos, sin datos personales.
+
+- **Dónde:** un archivo JSON por evento en `DATA_ESTADISTICAS` (en Railway, `/data/estadisticas` del volumen; en local, `estadisticas/`, fuera de git). Se escribe de forma atómica: nunca queda un archivo a medias.
+- **Panel del operador:** sección **Estadísticas del show**, con la sesión en curso, la lista de sesiones con su máximo, la curva de la sesión elegida y la descarga en CSV (`/api/e/<evento>/estadisticas?formato=csv`, con la hora de Chile y una columna por zona).
+- **Ajustes:** `UMBRAL_SESION` (50), `CIERRE_SESION_MS` (10 min) y `MUESTRA_MS` (1 min).
+- **¿Por qué un archivo y no una base de datos?** Son pocos datos (un show de 4 h son ~240 muestras), escribe un solo servidor y así no se agrega otro servicio que pueda fallar la noche del show. Si algún día se corren varios servidores o se cruzan muchos shows, el paso natural es SQLite o Postgres; todo pasa por `estadisticasDe` y `guardarEstadisticas`.
+
+Es el conteo exacto de teléfonos conectados. GA4 (abajo) solo cuenta a quienes aceptan el aviso.
+
 ## Estadísticas (Google Analytics 4)
 
 Opcional. Define la variable `GA4_ID` (el ID de medición, `G-…`) y reinicia: la lista de shows y la página del público cargan GA4. El panel del operador, el simulador y el QR no. Sin la variable no se carga nada de Google.
