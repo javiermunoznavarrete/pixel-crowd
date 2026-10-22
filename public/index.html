@@ -4,22 +4,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#15122A">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="Pixel Crowd: tu teléfono es un píxel del show. Sin app, desde el navegador.">
 <title>Pixel Crowd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
+  /* Noche de arena: índigo profundo, el blanco cálido de una pantalla de teléfono y el rojo zorro de la acción */
   :root {
-    --bg: #0b0b10; --panel: #16161f; --borde: #2a2a38; --texto: #f2f2f7; --suave: #9a9ab0;
-    --acento: #ff3d7f; --ok: #3ddc84;
+    --tinta: #15122A; --bruma: #262046; --brillo: #FFF1E0; --zorro: #FF2E4D; --lila: #A39DCC;
+    --bg: var(--tinta); --panel: var(--bruma); --borde: #3A3366; --texto: var(--brillo); --suave: var(--lila);
+    --acento: var(--zorro); --ok: #3ddc84;
+    --display: "Unbounded", system-ui, sans-serif;
+    --cuerpo: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
-    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .paso { display: none; min-height: 100%; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); font: 17px/1.5 var(--cuerpo); }
+  .paso { display: none; min-height: 100%; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); max-width: 520px; margin: 0 auto; }
   .paso.activo { display: block; }
-  h1 { font-size: 28px; margin: 8px 0 4px; letter-spacing: -0.02em; }
-  h2 { font-size: 20px; margin: 0 0 16px; }
-  p.sub { color: var(--suave); margin: 0 0 24px; }
+  h1, h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(30px, 8.5vw, 40px); line-height: 1.08; margin: 22px 0 14px; }
+  h2 { font-size: 22px; line-height: 1.2; margin: 0 0 6px; }
+  p.sub { color: var(--suave); margin: 0 0 18px; }
+  :focus-visible { outline: 3px solid var(--brillo); outline-offset: 3px; border-radius: 6px; }
+
+  /* Portada */
+  .marca { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; color: var(--brillo); }
+  .marca .logo { width: 22px; height: 22px; }
+  #hero { display: block; width: 100%; margin-top: 18px; border-radius: 18px; background: var(--tinta); }
+  .intro { font-size: 18px; margin: 0; max-width: 34ch; }
+  .evento { margin: 14px 0 0; color: var(--suave); }
+  .evento strong { color: var(--brillo); }
+  #seguir:empty { display: none; }
+  #seguir { margin-top: 22px; }
+  .bloque { margin-top: 40px; }
+  .pasos { list-style: none; counter-reset: paso; margin: 14px 0 0; padding: 0; display: grid; gap: 14px; }
+  .pasos li { counter-increment: paso; display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start; }
+  .pasos li::before { content: counter(paso); font-family: var(--display); font-weight: 700; font-size: 18px; width: 40px; height: 40px;
+    border-radius: 50%; display: grid; place-items: center; background: var(--bruma); color: var(--brillo); }
+  .pasos strong { display: block; }
+  .pasos span { color: var(--suave); }
+  .pie { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--borde); color: var(--suave); font-size: 14px; }
+  .pie p { margin: 0 0 8px; }
+  .pie a { color: inherit; }
   .lista { display: grid; gap: 12px; }
   button { font: inherit; color: inherit; cursor: pointer; }
   .opcion { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 18px 16px;
@@ -29,21 +58,22 @@
   label { display: block; color: var(--suave); font-size: 14px; margin: 16px 0 6px; }
   select { width: 100%; padding: 14px; font: inherit; font-size: 18px; color: var(--texto); background: var(--panel);
     border: 1px solid var(--borde); border-radius: 12px; }
-  .principal { width: 100%; margin-top: 28px; padding: 18px; border: 0; border-radius: 14px; font-size: 18px; font-weight: 700;
-    background: var(--acento); color: #fff; }
+  .principal { width: 100%; margin-top: 28px; padding: 18px; border: 0; border-radius: 14px; font-family: var(--display); font-size: 17px; font-weight: 700;
+    background: var(--acento); color: #fff; box-shadow: 0 0 0 0 rgba(255, 46, 77, 0); transition: box-shadow 0.3s; }
+  .principal:not(:disabled):active { box-shadow: 0 0 28px 4px rgba(255, 46, 77, 0.45); }
   .principal:disabled { opacity: 0.35; }
   .volver { background: none; border: 0; color: var(--suave); padding: 8px 0; margin-bottom: 8px; }
-  #mapa { display: block; width: 100%; border-radius: 14px; background: #101018; touch-action: manipulation; cursor: pointer; }
-  .leyenda { color: var(--suave); font-size: 13px; margin: 8px 0 0; text-align: center; }
+  #mapa { display: block; width: 100%; border-radius: 18px; background: #110E22; touch-action: manipulation; cursor: pointer; }
+  .leyenda { color: var(--suave); font-size: 14px; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
   details.mas { margin-top: 14px; }
   details.mas summary { color: var(--suave); padding: 10px 0; cursor: pointer; }
   details.mas .lista { margin-top: 8px; }
-  .marca { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: 0.18em; font-size: 13px; color: #fff; }
-  .marca .logo { width: 18px; height: 18px; }
-  .lema { color: var(--suave); font-size: 13px; margin: 6px 0 0; }
-  .aviso { margin-top: 28px; padding: 14px; border-radius: 12px; background: #1f1a10; border: 1px solid #4a3a14; color: #e8cf8a; font-size: 14px; }
-  .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: #2b2b3a; color: var(--suave);
-    font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px; }
+  .aviso { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: var(--bruma); color: var(--brillo); font-size: 15px; }
+  .aviso p { margin: 0 0 8px; }
+  .aviso p:last-child { margin: 0; color: var(--suave); }
+  .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: var(--bruma); color: var(--suave);
+    font-size: 14px; margin-bottom: 10px; }
   .grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .celda { aspect-ratio: 1.2; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel); color: var(--suave);
     font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
@@ -66,18 +96,46 @@
 <body>
 
 <section class="paso activo" id="paso-sector">
-  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
-  <p class="lema">Solo tu teléfono: sin pulseras, sin apps, sin instalar nada.</p>
-  <h1>Ilumina el show</h1>
-  <p class="sub">Tu pantalla será parte de las luces. Toca en el mapa el sector donde estás.</p>
-  <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
-  <p class="leyenda"><span style="color:#2ec6ef">■</span> B = Platea Baja &nbsp; <span style="color:#6f7cff">■</span> A = Platea Alta &nbsp; <span style="color:#c58cff">■</span> T = Tribuna &nbsp; <span style="color:#ff3d7f">■</span> C = Cancha</p>
-  <details class="mas">
-    <summary>O elige tu sector de una lista</summary>
-    <div class="lista" id="sectores"></div>
-  </details>
-  <div class="aviso">Sube el brillo al máximo. El show usa cambios de color y destellos suaves (máximo 3 por segundo).
-    Si eres sensible a las luces intermitentes, no lo uses.</div>
+  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="0" width="3" height="3" fill="#FFF1E0"/><rect x="8" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="0" y="4" width="3" height="3" fill="#FFF1E0"/><rect x="4" y="4" width="3" height="3" fill="#FF2E4D"/><rect x="8" y="4" width="3" height="3" fill="#3A3366"/><rect x="0" y="8" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="8" width="3" height="3" fill="#3A3366"/><rect x="8" y="8" width="3" height="3" fill="#FFF1E0"/></svg>pixel crowd</div>
+
+  <canvas id="hero" role="img" aria-label="Miles de teléfonos encendidos forman una tela roja que flamea"></canvas>
+  <h1>El público es la pantalla.</h1>
+  <p class="intro">Esta noche tu teléfono es un píxel. Junto a miles de otros forma olas, colores y una bandera que se ve desde el escenario.</p>
+  <p class="evento" id="evento" hidden></p>
+  <div id="seguir"></div>
+
+  <div class="bloque">
+    <h2>¿Dónde estás?</h2>
+    <p class="sub">Toca tu sector en el mapa.</p>
+    <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
+    <p class="leyenda"><span><i style="background:#5CC8FF"></i>B: Platea Baja</span><span><i style="background:#8C86FF"></i>A: Platea Alta</span><span><i style="background:#C58CFF"></i>T: Tribuna</span><span><i style="background:#FF2E4D"></i>C: Cancha</span></p>
+    <details class="mas">
+      <summary>Prefiero elegirlo de una lista</summary>
+      <div class="lista" id="sectores"></div>
+    </details>
+  </div>
+
+  <div class="bloque">
+    <h2>Cómo funciona</h2>
+    <ol class="pasos">
+      <li><div><strong>Toca tu sector</strong><span>Platea, tribuna o cancha.</span></div></li>
+      <li><div><strong>Elige tu asiento</strong><span>Fila y número de tu entrada. En cancha, la parte donde estás.</span></div></li>
+      <li><div><strong>Enciende tu pantalla</strong><span>Levántala cuando empiece la canción. El color cambia solo.</span></div></li>
+    </ol>
+  </div>
+
+  <div class="bloque">
+    <h2>Antes de empezar</h2>
+    <div class="aviso">
+      <p>Sube el brillo al máximo y no bloquees el teléfono.</p>
+      <p>Hay cambios de color y destellos suaves, nunca más de 3 por segundo. Si eres sensible a las luces intermitentes, mejor no lo uses.</p>
+    </div>
+  </div>
+
+  <footer class="pie">
+    <p>Sin app ni registro: funciona en el navegador. Solo se usa tu ubicación en el recinto, nunca tu nombre ni tu número.</p>
+    <p>Pixel Crowd es un proyecto de Javier Julian Muñoz Navarrete, de uso no comercial. <a href="https://github.com/javiermunoznavarrete/pixel-crowd" target="_blank" rel="noopener">Ver el código</a>.</p>
+  </footer>
 </section>
 
 <section class="paso" id="paso-asiento">
@@ -112,6 +170,7 @@
 
 <script src="/vendor/NoSleep.min.js"></script>
 <script src="/show.js"></script>
+<script src="/conciertos/babymetal.js"></script>
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -138,7 +197,7 @@
   }
 
   // ---- Mapa tocable ----
-  const COLORES = { general: '#ff3d7f', 'Platea Baja': '#2ec6ef', 'Platea Alta': '#6f7cff', Tribuna: '#c58cff' };
+  const COLORES = { general: '#FF2E4D', 'Platea Baja': '#5CC8FF', 'Platea Alta': '#8C86FF', Tribuna: '#C58CFF' };
   const mapa = $('mapa');
   const ctxMapa = mapa.getContext('2d');
   const esc = recinto.escenario;
@@ -286,10 +345,12 @@
 
   function describir(u) {
     const s = recinto.porId[u.sector];
-    if (s.tipo === 'numerada') return `${s.nombre} · Fila ${u.fila} · Asiento ${u.asiento}`;
-    const p = Show.PROFUNDIDADES.find((x) => x.id === u.profundidad).nombre;
-    const l = Show.LADOS.find((x) => x.id === u.lado).nombre;
-    return `${s.nombre} · ${p} · ${l}`;
+    if (s.tipo === 'numerada') return `${s.nombre}, fila ${u.fila}, asiento ${u.asiento}`;
+    const prof = { adelante: 'adelante', medio: 'al medio', atras: 'atrás' }[u.profundidad];
+    const lado = { izq: 'a la izquierda', centro: 'al centro', der: 'a la derecha' }[u.lado];
+    // Cuadrantes de cancha: su etiqueta del mapa (C1…C4) es más corta que el nombre completo
+    const zona = s.etiqueta && s.grupo ? `${s.grupo[0]}${s.grupo.slice(1).toLowerCase()} ${s.etiqueta}` : s.nombre;
+    return `${zona}, ${prof} ${lado}`;
   }
 
   function iniciar(u) {
@@ -355,10 +416,86 @@
       b.className = 'principal';
       b.textContent = 'Seguir en ' + describir(guardada);
       b.onclick = () => iniciar(guardada);
-      mapa.before(b);
-      b.style.margin = '0 0 20px';
+      $('seguir').appendChild(b);
+      b.style.margin = '0';
     }
   } catch (e) {}
+
+  // ---- Evento ----
+  const concierto = (window.CONCIERTOS || [])[0];
+  if (concierto && concierto.lugar) {
+    $('evento').innerHTML = `<strong>${concierto.titulo}</strong> en el ${concierto.lugar}, ${concierto.fecha}.`;
+    $('evento').hidden = false;
+  }
+
+  // ---- Portada viva ----
+  // Una grilla de pequeños teléfonos que se encienden en una ola desde abajo y luego flamean como una tela
+  // roja, con el mismo motor que usa el show. Algunos quedan apagados, como en un público real.
+  const hero = $('hero');
+  const ctxHero = hero.getContext('2d');
+  const capaHero = { id: 'portada', efecto: 'tela', modo: 'sector', color: '#FF2E4D', color2: '#15122A', velocidad: 24, inicio: 0 };
+  const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let celdas = [], anchoHero = 0, altoHero = 0, paso = 12, cols = 0, rows = 0;
+  let inicioHero = null, heroVisible = true;
+
+  function medirHero() {
+    const dpr = window.devicePixelRatio || 1;
+    anchoHero = hero.clientWidth;
+    altoHero = Math.round(anchoHero * 0.56);
+    paso = Math.max(11, anchoHero / 32);
+    cols = Math.floor(anchoHero / paso);
+    rows = Math.floor(altoHero / paso);
+    hero.style.height = altoHero + 'px';
+    hero.width = anchoHero * dpr;
+    hero.height = altoHero * dpr;
+    ctxHero.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let semilla = 11;
+    const azar = () => ((semilla = (semilla * 16807) % 2147483647) / 2147483647);
+    celdas = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      celdas.push({ x, y, apagado: azar() < 0.07, grid: { col: x, row: rows - 1 - y, cols, rows } });
+    }
+  }
+
+  const BRUMA = [38, 32, 70], BRILLO = [255, 241, 224];
+  function dibujarHero(ahora) {
+    if (inicioHero === null) inicioHero = ahora;
+    const intro = reducir ? 1 : Math.min(1, (ahora - inicioHero) / 1800); // la ola sube en 1,8 s
+    const t = Date.now();
+    const ox = (anchoHero - cols * paso) / 2, oy = (altoHero - rows * paso) / 2;
+    const w = paso * 0.56, h = paso * 0.74; // proporción de una pantalla de teléfono
+    ctxHero.fillStyle = '#15122A';
+    ctxHero.fillRect(0, 0, anchoHero, altoHero);
+    for (const c of celdas) {
+      const desdeAbajo = (rows - 1 - c.y) / rows;
+      const frente = intro * 1.25 - desdeAbajo; // > 0: la ola ya pasó por esta fila
+      let color;
+      if (c.apagado || frente <= 0) color = BRUMA;
+      else {
+        color = Show.colorEn(capaHero, { grid: c.grid }, t);
+        if (frente < 0.12) { // borde de la ola: destello cálido
+          const k = 1 - frente / 0.12;
+          color = [color[0] + (BRILLO[0] - color[0]) * k, color[1] + (BRILLO[1] - color[1]) * k, color[2] + (BRILLO[2] - color[2]) * k];
+        }
+      }
+      ctxHero.fillStyle = Show.css(color);
+      const px = ox + c.x * paso + (paso - w) / 2, py = oy + c.y * paso + (paso - h) / 2;
+      ctxHero.beginPath();
+      ctxHero.roundRect ? ctxHero.roundRect(px, py, w, h, Math.min(2.5, w / 4)) : ctxHero.rect(px, py, w, h);
+      ctxHero.fill();
+    }
+  }
+
+  function bucleHero(ahora) {
+    if (heroVisible && !document.hidden && $('paso-sector').classList.contains('activo')) dibujarHero(ahora);
+    if (!reducir) requestAnimationFrame(bucleHero);
+  }
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((e) => { heroVisible = e[0].isIntersecting; }).observe(hero);
+  }
+  window.addEventListener('resize', () => { medirHero(); if (reducir) dibujarHero(performance.now()); });
+  medirHero();
+  requestAnimationFrame(bucleHero);
 })();
 </script>
 </body>

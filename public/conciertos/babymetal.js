@@ -11,6 +11,8 @@
     id: 'babymetal-2026',
     titulo: 'BABYMETAL',
     pestana: 'BABYMETAL · 3 dic 🦊',
+    lugar: 'Movistar Arena', // para la portada del público
+    fecha: 'jueves 3 de diciembre',
     subtitulo: 'Jueves 3 dic 2026 · Movistar Arena',
     nota: 'Orden según el setlist de la gira 2026. Colores de la banda: rojo, negro y blanco. BPM aproximados.',
     presets: [
