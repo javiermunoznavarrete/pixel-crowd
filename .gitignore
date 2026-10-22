@@ -5,3 +5,6 @@ clave-admin.txt
 data/eventos/*/clave.txt
 # Aportes del público (datos de uso, se guardan en el servidor)
 aportes/
+# Recintos reales: viven en el repositorio privado pixel-crowd-recintos (solo el demo es público)
+data/recintos/*
+!data/recintos/demo/

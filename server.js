@@ -17,7 +17,14 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 const DIR_EVENTOS = process.env.EVENTOS_DIR || path.join(__dirname, 'data', 'eventos');
-const DIR_RECINTOS = process.env.RECINTOS_DIR || path.join(__dirname, 'data', 'recintos');
+// Carpetas donde buscar recintos, en orden: RECINTOS_DIR (puede ser una lista separada por ";" en Windows
+// o ":" en Linux), el repositorio privado de recintos clonado al lado de este, y data/recintos (el demo).
+// Los mapas de recintos reales viven en un repositorio privado y no se publican con el código.
+const DIRS_RECINTOS = [...new Set([
+  ...(process.env.RECINTOS_DIR || '').split(path.delimiter).filter(Boolean),
+  path.join(__dirname, '..', 'pixel-crowd-recintos', 'recintos'),
+  path.join(__dirname, 'data', 'recintos'),
+].map((d) => path.resolve(d)))].filter((d) => fs.existsSync(d));
 const ZONA_HORARIA = 'America/Santiago';
 
 // ---------- Claves ----------
@@ -50,7 +57,8 @@ function sesionValida(token, ev) {
 const cacheRecintos = new Map();
 function cargarRecinto(nombre) {
   if (cacheRecintos.has(nombre)) return cacheRecintos.get(nombre);
-  const dir = path.join(DIR_RECINTOS, nombre);
+  const dir = DIRS_RECINTOS.map((d) => path.join(d, nombre)).find((d) => fs.existsSync(path.join(d, 'recinto.json')));
+  if (!dir) return null;
   const recinto = JSON.parse(fs.readFileSync(path.join(dir, 'recinto.json'), 'utf8'));
   const porId = Object.fromEntries(recinto.sectores.map((s) => [s.id, s]));
   for (const s of recinto.sectores) if (s.tipo === 'numerada') s.asientos = [];
@@ -93,6 +101,10 @@ function cargarEventos() {
     if (!SLUG.test(slug) || RESERVADOS.has(slug)) throw new Error(`Nombre de evento no válido: "${slug}" (usa minúsculas, números y guiones)`);
     const def = JSON.parse(fs.readFileSync(path.join(dir, 'evento.json'), 'utf8'));
     const datosRecinto = cargarRecinto(def.recinto);
+    if (!datosRecinto) { // p. ej. una copia del código sin el repositorio privado de recintos
+      console.warn(`  Aviso: se omite el evento "${slug}" porque no se encontró el recinto "${def.recinto}".`);
+      continue;
+    }
     const clave = process.env['CLAVE_EVENTO_' + slug.toUpperCase().replace(/-/g, '_')] || leerArchivo(path.join(dir, 'clave.txt'));
     const ev = {
       slug, def: { ...def, slug }, ...datosRecinto,
@@ -495,7 +507,8 @@ servidor.on('error', (err) => {
 servidor.listen(PORT, '0.0.0.0', () => {
   const ips = ipsLocales();
   const base = ips.length ? urlPublico(ips[0].ip) : `http://localhost:${PORT}/`;
-  console.log(`\nPixel Crowd — ${eventos.size} evento(s)\n`);
+  console.log(`\nPixel Crowd — ${eventos.size} evento(s)`);
+  console.log(`  Recintos desde: ${DIRS_RECINTOS.join(' · ')}\n`);
   for (const ev of eventos.values()) {
     const marcas = [situacion(ev.def), ev.def.oculto ? 'oculto' : '', ev.huellaClave ? 'clave propia' : ''].filter(Boolean).join(', ');
     console.log(`  ${ev.def.titulo} (${marcas})`);

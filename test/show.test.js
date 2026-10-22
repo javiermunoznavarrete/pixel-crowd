@@ -27,9 +27,16 @@ function recintoDemo(Show) {
 const Show = cargarShow();
 const recinto = recintoDemo(Show);
 
-test('Teatro Caupolicán: 18 zonas con forma propia, 9 celdas parejas y graderías bien orientadas', () => {
+// El mapa del Caupolicán vive en el repositorio privado de recintos (clonado al lado de este o en
+// RECINTOS_DIR); en una copia pública del código este test se omite.
+const RUTA_CAUPOLICAN = [
+  ...(process.env.RECINTOS_DIR || '').split(path.delimiter).filter(Boolean),
+  path.join(__dirname, '..', '..', 'pixel-crowd-recintos', 'recintos'),
+].map((d) => path.join(d, 'teatro-caupolican', 'recinto.json')).find((f) => fs.existsSync(f));
+
+test('Teatro Caupolicán: 18 zonas con forma propia, 9 celdas parejas y graderías bien orientadas', { skip: !RUTA_CAUPOLICAN && 'sin el repositorio privado de recintos' }, () => {
   const S = cargarShow(); // instancia aparte: prepararRecinto guarda tablas por recinto
-  const t = S.prepararRecinto(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'recintos', 'teatro-caupolican', 'recinto.json'), 'utf8')));
+  const t = S.prepararRecinto(JSON.parse(fs.readFileSync(RUTA_CAUPOLICAN, 'utf8')));
   assert.strictEqual(t.sectores.length, 18);
   for (const s of t.sectores) {
     assert.strictEqual(s.tipo, 'general', s.id);

@@ -1,0 +1,28 @@
+{
+  "titulo": "Demo de Pixel Crowd",
+  "pestana": "Demo",
+  "lugar": "Estadio de prueba",
+  "fecha": "cuando quieras",
+  "recinto": "demo",
+  "oculto": true,
+  "subtitulo": "Evento de demostración con un estadio de prueba",
+  "nota": "Evento oculto, siempre disponible en /demo para probar la app.",
+  "presets": [
+    {
+      "nombre": "Bandera de Chile",
+      "destacado": true,
+      "descripcion": "Una sola bandera con todo el público, vista desde el escenario",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "modo": "completa", "velocidad": 20 } }]
+    },
+    {
+      "nombre": "Texto en galerías",
+      "descripcion": "Mosaico de texto en las galerías numeradas",
+      "asignaciones": [{ "zonas": "numeradas", "capa": { "efecto": "texto", "color": "#ffffff", "color2": "#c4002b", "velocidad": 12, "texto": "PIXEL CROWD" } }]
+    },
+    {
+      "nombre": "Apagón",
+      "descripcion": "Todo en negro",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#000000" } }]
+    }
+  ]
+}
