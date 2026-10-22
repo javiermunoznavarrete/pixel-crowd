@@ -27,6 +27,30 @@ function recintoDemo(Show) {
 const Show = cargarShow();
 const recinto = recintoDemo(Show);
 
+test('Teatro Caupolicán: 18 zonas con forma propia, 9 celdas parejas y graderías bien orientadas', () => {
+  const S = cargarShow(); // instancia aparte: prepararRecinto guarda tablas por recinto
+  const t = S.prepararRecinto(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'recintos', 'teatro-caupolican', 'recinto.json'), 'utf8')));
+  assert.strictEqual(t.sectores.length, 18);
+  for (const s of t.sectores) {
+    assert.strictEqual(s.tipo, 'general', s.id);
+    assert.strictEqual(Object.keys(s.subzonas).length, 9, s.id);
+    // Celdas repartidas por cantidad de puntos: ninguna con menos de la mitad del promedio
+    const conteo = Array(9).fill(0);
+    for (const q of s.puntos) conteo[q[2]]++;
+    const prom = s.puntos.length / 9;
+    assert.ok(Math.min(...conteo) >= prom / 2, `${s.id}: ${conteo}`);
+  }
+  // En una gradería, las filas de abajo quedan más cerca de la cancha que las de arriba
+  const cancha = t.porId['CANCHA-TI'];
+  const cx = cancha.rect.x2, cy = cancha.rect.y1; // esquina central de la cancha
+  const fondo = t.porId['PA-F'];
+  const d = (k) => Math.hypot(fondo.subzonas[k].x - cx, fondo.subzonas[k].y - cy);
+  assert.ok(d('adelante-centro') < d('atras-centro'));
+  // Platea Alta se ve más arriba desde el escenario que la cancha
+  const pos = (sector, profundidad, lado) => S.posicionDe(t, { sector, profundidad, lado });
+  assert.ok(pos('PA-F', 'atras', 'centro').vista.v < pos('CANCHA-AI', 'adelante', 'centro').vista.v);
+});
+
 test('posición de un asiento numerado usa sus coordenadas exactas y su grilla', () => {
   const p = Show.posicionDe(recinto, { sector: 'G3', fila: 'A', asiento: '1' });
   assert.strictEqual(p.zona, 'G3');

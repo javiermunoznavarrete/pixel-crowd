@@ -114,8 +114,18 @@
       Show.PROFUNDIDADES.forEach((p, iy) => Show.LADOS.forEach((l, ix) => {
         const pos = Show.posicionDe(recinto, { sector: s.id, profundidad: p.id, lado: l.id });
         const puntos = [];
-        for (let i = 0; i < MAX_PUNTOS_SUBZONA; i++) {
-          const x = x1 + (ix + azar()) * (x2 - x1) / 3, y = y1 + (iy + azar()) * (y2 - y1) / 3;
+        // Zonas con forma propia: la gente se reparte sobre su nube de puntos (con un leve desorden)
+        const propios = s.puntos ? s.puntos.filter((q) => q[2] === iy * 3 + ix) : null;
+        if (!pos || (propios && !propios.length)) { subzonas[p.id + '-' + l.id] = puntos; return; }
+        const cuantos = propios ? Math.min(MAX_PUNTOS_SUBZONA, propios.length * 3) : MAX_PUNTOS_SUBZONA;
+        for (let i = 0; i < cuantos; i++) {
+          let x, y;
+          if (propios) {
+            const q = propios[Math.floor(azar() * propios.length)];
+            x = q[0] + (azar() - 0.5) * 0.6; y = q[1] + (azar() - 0.5) * 0.6;
+          } else {
+            x = x1 + (ix + azar()) * (x2 - x1) / 3; y = y1 + (iy + azar()) * (y2 - y1) / 3;
+          }
           puntos.push({ zona: s.id, x, y, r: azar(), pos,
             posReal: { zona: s.id, x, y, grid: null, rel: Show.relEnRect(s.rectGrupo || s.rect, x, y), vista: Show.vistaEn(recinto, x, y) } });
         }
@@ -187,6 +197,8 @@
   }
 
   // ---- Vistas frontales de sectores numerados ----
+  // Recintos sin sectores numerados (p. ej. el Caupolicán): no hay mosaicos que mostrar
+  if (!recinto.sectores.some((s) => s.tipo === 'numerada')) $('frontales').closest('.caja').hidden = true;
   const frontales = recinto.sectores.filter((s) => s.tipo === 'numerada').map((s) => {
     const div = document.createElement('div');
     div.className = 'frontal';
@@ -247,7 +259,11 @@
     // Zonas generales: contorno tenue y un punto por teléfono
     for (const { s, subzonas } of generales) {
       ctx.strokeStyle = '#262634';
-      ctx.strokeRect((s.rect.x1 - minX) * escala, (s.rect.y1 - minY) * escala, (s.rect.x2 - s.rect.x1) * escala, (s.rect.y2 - s.rect.y1) * escala);
+      if (!s.puntos) ctx.strokeRect((s.rect.x1 - minX) * escala, (s.rect.y1 - minY) * escala, (s.rect.x2 - s.rect.x1) * escala, (s.rect.y2 - s.rect.y1) * escala);
+      else { // forma propia: su nube de puntos en tono apagado
+        ctx.fillStyle = '#1a1a26';
+        for (const q of s.puntos) ctx.fillRect((q[0] - minX) * escala, (q[1] - minY) * escala, Math.max(1, 0.5 * escala), Math.max(1, 0.5 * escala));
+      }
       const capa = reproductor.capa(s.id, t);
       const tam = Math.max(1.5, 0.6 * escala);
       for (const [clave, puntos] of Object.entries(subzonas)) {

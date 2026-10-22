@@ -78,6 +78,7 @@
   .celda { aspect-ratio: 1.2; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel); color: var(--suave);
     font-size: 13px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px; }
   .celda.sel { background: var(--acento); color: #fff; border-color: var(--acento); font-weight: 700; }
+  .celda:disabled { opacity: 0.25; }
   .etiq-fila { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; color: var(--suave); font-size: 12px; text-align: center; margin-top: 6px; }
 
   #show { position: fixed; inset: 0; background: #000; display: none; }
@@ -114,7 +115,7 @@
     <h2>¿Dónde estás?</h2>
     <p class="sub">Toca tu sector en el mapa.</p>
     <canvas id="mapa" aria-label="Mapa del recinto: toca tu sector"></canvas>
-    <p class="leyenda"><span><i style="background:#5CC8FF"></i>B: Platea Baja</span><span><i style="background:#8C86FF"></i>A: Platea Alta</span><span><i style="background:#C58CFF"></i>T: Tribuna</span><span><i style="background:#FF2E4D"></i>C: Cancha</span></p>
+    <p class="leyenda" id="leyenda"></p>
     <details class="mas">
       <summary>Prefiero elegirlo de una lista</summary>
       <div class="lista" id="sectores"></div>
@@ -125,7 +126,7 @@
     <h2>Cómo funciona</h2>
     <ol class="pasos">
       <li><div><strong>Toca tu sector</strong><span>Platea, tribuna o cancha.</span></div></li>
-      <li><div><strong>Elige tu asiento</strong><span>Fila y número de tu entrada. En cancha, la parte donde estás.</span></div></li>
+      <li><div><strong>Elige tu asiento</strong><span>Fila y número de tu entrada. Si tu sector no es numerado, toca la parte donde estás.</span></div></li>
       <li><div><strong>Enciende tu pantalla</strong><span>Levántala cuando empiece la canción. El color cambia solo.</span></div></li>
     </ol>
   </div>
@@ -159,10 +160,10 @@
 <section class="paso" id="paso-zona">
   <button class="volver" data-volver>← Cambiar sector</button>
   <h2 id="titulo-zona"></h2>
-  <p class="sub">Toca la parte de esta zona donde estás.</p>
-  <div class="escenario">Escenario</div>
+  <p class="sub" id="ayuda-zona">Toca la parte de esta zona donde estás.</p>
+  <div class="escenario" id="referencia-zona">Escenario</div>
   <div class="grilla" id="grilla"></div>
-  <div class="etiq-fila"><span>Izquierda</span><span>Centro</span><span>Derecha</span></div>
+  <div class="etiq-fila" id="lados-zona"><span>Izquierda</span><span>Centro</span><span>Derecha</span></div>
   <button class="principal" id="listo-zona" disabled>Encender mi pantalla</button>
 </section>
 
@@ -207,20 +208,23 @@
   for (const s of recinto.sectores) {
     const b = document.createElement('button');
     b.className = 'opcion';
-    b.innerHTML = `<span>${s.nombre}</span><small>${s.tipo === 'numerada' ? 'Numerada' : 'De pie'}</small>`;
+    const tipo = s.tipo === 'numerada' ? 'Numerada' : (s.grupo === 'CANCHA' || /cancha/i.test(s.nombre) ? 'De pie' : 'Sin numerar');
+    b.innerHTML = `<span>${s.nombre}</span><small>${tipo}</small>`;
     b.onclick = () => elegirSector(s);
     $('sectores').appendChild(b);
   }
 
   // ---- Mapa tocable ----
-  const COLORES = { general: '#FF2E4D', 'Platea Baja': '#5CC8FF', 'Platea Alta': '#8C86FF', Tribuna: '#C58CFF' };
+  const COLORES = { general: '#FF2E4D', 'Platea Baja': '#5CC8FF', 'Platea Alta': '#8C86FF', Tribuna: '#C58CFF', Palco: '#FFB547' };
+  const colorDe = (s) => COLORES[s.nivel] || (s.tipo === 'general' ? COLORES.general : '#6f7cff');
   const mapa = $('mapa');
   const ctxMapa = mapa.getContext('2d');
   const esc = recinto.escenario;
-  const puntosSector = new Map(); // sector → [{x,y}]
+  const puntosSector = new Map(); // sector → [{x,y}] (asientos, o la nube de puntos de una zona con forma propia)
   let minX = esc.x1, maxX = esc.x2, minY = esc.y1, maxY = esc.y2;
   for (const s of recinto.sectores) {
-    const pts = s.tipo === 'numerada' ? [...s.mapa.values()].map((a) => ({ x: a.x, y: a.y })) : [];
+    const pts = s.tipo === 'numerada' ? [...s.mapa.values()].map((a) => ({ x: a.x, y: a.y }))
+      : (s.puntos || []).map((q) => ({ x: q[0], y: q[1] }));
     puntosSector.set(s, pts);
     for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
     if (s.rect) { minX = Math.min(minX, s.rect.x1); maxX = Math.max(maxX, s.rect.x2); minY = Math.min(minY, s.rect.y1); maxY = Math.max(maxY, s.rect.y2); }
@@ -229,10 +233,23 @@
   let escMapa = 1;
   let sectorResaltado = null;
   const centro = (s) => {
-    if (s.rect) return { x: (s.rect.x1 + s.rect.x2) / 2, y: (s.rect.y1 + s.rect.y2) / 2 };
     const pts = puntosSector.get(s);
+    if (!pts.length) return { x: (s.rect.x1 + s.rect.x2) / 2, y: (s.rect.y1 + s.rect.y2) / 2 };
     return { x: pts.reduce((a, p) => a + p.x, 0) / pts.length, y: pts.reduce((a, p) => a + p.y, 0) / pts.length };
   };
+
+  // Leyenda según el recinto: una entrada por nivel, con el prefijo común de sus etiquetas (B, A, T, C, P…)
+  const grupos = new Map();
+  for (const s of recinto.sectores) {
+    const nivel = s.nivel || (s.tipo === 'general' ? 'Cancha' : 'Sector');
+    if (!grupos.has(nivel)) grupos.set(nivel, { color: colorDe(s), etiquetas: [] });
+    if (s.etiqueta) grupos.get(nivel).etiquetas.push(s.etiqueta);
+  }
+  const prefijoComun = (lista) => lista.reduce((pre, e) => { let i = 0; while (i < pre.length && pre[i] === e[i]) i++; return pre.slice(0, i); }, lista[0] || '').replace(/\d+$/, '');
+  $('leyenda').innerHTML = [...grupos].map(([nivel, g]) => {
+    const pre = prefijoComun(g.etiquetas);
+    return `<span><i style="background:${g.color}"></i>${pre ? pre + ': ' : ''}${nivel}</span>`;
+  }).join('');
   // "Platea Baja 7" → "B7", "Platea Alta 3" → "A3" (los números se repiten entre niveles)
   const etiquetaCorta = (s) => {
     if (s.etiqueta) return s.etiqueta;
@@ -260,9 +277,9 @@
 
     for (const s of recinto.sectores) {
       const activo = s === sectorResaltado;
-      const color = activo ? '#ffffff' : (s.tipo === 'general' ? COLORES.general : (COLORES[s.nivel] || '#6f7cff'));
+      const color = activo ? '#ffffff' : colorDe(s);
       ctxMapa.fillStyle = color;
-      if (s.rect) {
+      if (s.rect && !s.puntos) {
         ctxMapa.globalAlpha = activo ? 0.9 : 0.35;
         ctxMapa.fillRect(X(s.rect.x1), Y(s.rect.y1), (s.rect.x2 - s.rect.x1) * escMapa, (s.rect.y2 - s.rect.y1) * escMapa);
         ctxMapa.globalAlpha = 1;
@@ -276,7 +293,7 @@
     // Etiquetas encima de todo
     for (const s of recinto.sectores) {
       const c = centro(s);
-      ctxMapa.font = s.rect ? '700 13px system-ui' : '700 12px system-ui';
+      ctxMapa.font = s.rect && !s.puntos ? '700 13px system-ui' : '700 12px system-ui';
       ctxMapa.lineWidth = 3;
       ctxMapa.strokeStyle = 'rgba(0,0,0,0.75)';
       const txt = s.rect && !s.etiqueta ? s.nombre.toUpperCase() : etiquetaCorta(s);
@@ -332,14 +349,26 @@
 
   // ---- Paso 2b: zona general (3x3) ----
   let celdaSel = null;
+  // Textos de la cuadrícula: los de la zona (p. ej. graderías: "Cancha", "Filas de abajo"…) o los de cancha
+  const textosDe = (s) => ({
+    referencia: s.textos?.referencia || 'Escenario',
+    ayuda: s.textos?.ayuda || 'Toca la parte de esta zona donde estás.',
+    profundidades: s.textos?.profundidades || Show.PROFUNDIDADES.map((p) => p.nombre),
+    lados: s.textos?.lados || Show.LADOS.map((l) => l.nombre),
+  });
   function armarGrilla() {
     celdaSel = null;
     $('listo-zona').disabled = true;
     $('grilla').innerHTML = '';
-    for (const p of Show.PROFUNDIDADES) for (const l of Show.LADOS) {
+    const t = textosDe(sector);
+    $('ayuda-zona').textContent = t.ayuda;
+    $('referencia-zona').textContent = t.referencia;
+    $('lados-zona').innerHTML = t.lados.map((l) => `<span>${l}</span>`).join('');
+    for (const [iy, p] of Show.PROFUNDIDADES.entries()) for (const l of Show.LADOS) {
       const c = document.createElement('button');
       c.className = 'celda';
-      c.textContent = p.nombre;
+      c.textContent = t.profundidades[iy];
+      c.disabled = !sector.subzonas[p.id + '-' + l.id]; // zonas con forma irregular pueden no tener las 9
       c.onclick = () => {
         $('grilla').querySelectorAll('.celda').forEach((x) => x.classList.remove('sel'));
         c.classList.add('sel');
@@ -362,10 +391,14 @@
   function describir(u) {
     const s = recinto.porId[u.sector];
     if (s.tipo === 'numerada') return `${s.nombre}, fila ${u.fila}, asiento ${u.asiento}`;
-    const prof = { adelante: 'adelante', medio: 'al medio', atras: 'atrás' }[u.profundidad];
     const lado = { izq: 'a la izquierda', centro: 'al centro', der: 'a la derecha' }[u.lado];
+    if (s.textos) { // graderías: "Platea Baja fondo, filas de abajo, a la izquierda"
+      const iy = Show.PROFUNDIDADES.findIndex((p) => p.id === u.profundidad);
+      return `${s.nombre}, ${textosDe(s).profundidades[iy].toLowerCase()}, ${lado}`;
+    }
+    const prof = { adelante: 'adelante', medio: 'al medio', atras: 'atrás' }[u.profundidad];
     // Cuadrantes de cancha: su etiqueta del mapa (C1…C4) es más corta que el nombre completo
-    const zona = s.etiqueta && s.grupo ? `${s.grupo[0]}${s.grupo.slice(1).toLowerCase()} ${s.etiqueta}` : s.nombre;
+    const zona = s.etiqueta && s.grupo === 'CANCHA' ? `Cancha ${s.etiqueta}` : s.nombre;
     return `${zona}, ${prof} ${lado}`;
   }
 

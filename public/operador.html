@@ -198,7 +198,7 @@
   for (const s of recinto.sectores) {
     const l = document.createElement('label');
     l.className = 'zona';
-    l.innerHTML = `<input type="checkbox" value="${s.id}" checked> ${s.nombre} <small>${s.tipo === 'numerada' ? 'numerada' : 'de pie'}</small><span class="n" id="n-${s.id}">0</span>`;
+    l.innerHTML = `<input type="checkbox" value="${s.id}" checked> ${s.nombre} <small>${s.tipo === 'numerada' ? 'numerada' : (s.grupo === 'CANCHA' || /cancha/i.test(s.nombre) ? 'de pie' : 'sin numerar')}</small><span class="n" id="n-${s.id}">0</span>`;
     l.querySelector('input').onchange = (e) => e.target.checked ? seleccion.add(s.id) : seleccion.delete(s.id);
     $('zonas').appendChild(l);
   }

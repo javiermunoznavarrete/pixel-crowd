@@ -1,0 +1,33 @@
+{
+  "titulo": "Ensayo Teatro Caupolicán",
+  "pestana": "Ensayo Caupolicán",
+  "lugar": "Teatro Caupolicán",
+  "fecha": "fecha por definir",
+  "recinto": "teatro-caupolican",
+  "oculto": true,
+  "subtitulo": "Evento de prueba del mapa del Teatro Caupolicán",
+  "nota": "Evento oculto: no aparece en la lista pública. Sirve para probar el mapa del teatro.",
+  "presets": [
+    {
+      "nombre": "Bandera de Chile",
+      "destacado": true,
+      "descripcion": "Una sola bandera con todo el público, vista desde el escenario",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "modo": "completa", "velocidad": 20 } }]
+    },
+    {
+      "nombre": "Tela roja",
+      "descripcion": "Una gran tela roja flameando con todo el público",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "tela", "modo": "completa", "color": "#e60012", "color2": "#000000", "velocidad": 30 } }]
+    },
+    {
+      "nombre": "Ola de lado a lado",
+      "descripcion": "Ola celeste que cruza el teatro",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#00e5ff", "color2": "#05051a", "velocidad": 20, "angulo": 0 } }]
+    },
+    {
+      "nombre": "Apagón",
+      "descripcion": "Todo en negro",
+      "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#000000" } }]
+    }
+  ]
+}

@@ -66,7 +66,9 @@
           });
         });
         s.asientosDeFila = (fila) => porFila.get(fila).map((a) => a.asiento);
-      } else {
+      } else if (!s.subzonas) {
+        // Zona rectangular: 9 subzonas en cuadrícula. (Zonas con forma propia, como las graderías del
+        // Caupolicán, traen sus subzonas ya calculadas por el importador, con su nube de puntos.)
         const { x1, y1, x2, y2 } = s.rect;
         s.subzonas = {};
         PROFUNDIDADES.forEach((p, iy) => LADOS.forEach((l, ix) => {
@@ -123,9 +125,12 @@
         }
       } else {
         const area = (s.rect.x2 - s.rect.x1) * (s.rect.y2 - s.rect.y1) / 9;
-        for (const c of Object.values(s.subzonas)) {
-          c.vistaCruda = vistaCruda(c.x, c.y, ALTURA_CANCHA);
-          muestras.push({ ...c.vistaCruda, w: area * PERSONAS_M2_CANCHA });
+        // altura: [filas de adelante/abajo, filas de atrás/arriba] (graderías); cancha a la altura de la mano
+        const [zIni, zFin] = s.altura || [ALTURA_CANCHA, ALTURA_CANCHA];
+        for (const [clave, c] of Object.entries(s.subzonas)) {
+          const iy = PROFUNDIDADES.findIndex((p) => clave.startsWith(p.id + '-'));
+          c.vistaCruda = vistaCruda(c.x, c.y, zIni + (zFin - zIni) * Math.max(0, iy) / 2);
+          muestras.push({ ...c.vistaCruda, w: c.peso ?? area * PERSONAS_M2_CANCHA });
           conVista.push(c);
         }
       }
