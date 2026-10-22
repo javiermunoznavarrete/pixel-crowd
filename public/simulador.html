@@ -83,8 +83,7 @@
   let ocupacion = null; // ocupación real informada por el servidor
   let modo = 'vivo';
 
-  Show.sincronizarReloj();
-  setInterval(Show.sincronizarReloj, 30000);
+  Show.mantenerReloj();
   Show.conectar({
     rol: 'simulador',
     sesion: Sesion.get(),

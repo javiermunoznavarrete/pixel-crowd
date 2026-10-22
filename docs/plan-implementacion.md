@@ -1,5 +1,27 @@
 # Plan de implementación: del prototipo LAN a la acción de fans
 
+## Estado al 22 de octubre de 2026
+
+El plan original (más abajo) suponía Cloudflare. Terminamos en **Railway, sin CDN**, con dos shows la misma noche (Movistar Arena y Teatro Caupolicán). Antes de cambiar el transporte se midió con `tools/carga.js` (10.000 teléfonos simulados; resultados en el README):
+
+- **Transporte:** se mantiene **SSE** como vía principal. Sin CDN, 20.000 teléfonos consultando cada 3 s serían ~7.000 consultas/s contra un solo servidor, mientras que SSE entrega cada cambio con una sola escritura por teléfono. El **polling queda como respaldo automático** para los teléfonos cuya red no sostiene la conexión (§2.2 con `ETag`, jitter y backoff). Railway corta las conexiones a los 15 min y quizá tras 60 s sin datos: EventSource reconecta solo y el servidor manda una señal de vida cada 16 s.
+- **El cuello de botella real era el reloj:** 6 consultas cada 30 s por teléfono (~1.900 consultas/s con 10.000). Ahora: espera inicial al azar, re-sincronización cada ~4 min con 3 muestras, `performance.now()` y cada respuesta de `/estado` sirve de muestra (§2.3). Resultado: ~125 consultas/s y ±3 ms de ida y vuelta.
+- **Estado compacto:** cada capa viaja una vez aunque la usen 32 zonas, y se serializa una sola vez por cambio (antes, una vez por teléfono). Con el Movistar Arena el cambio llega 3 veces más rápido.
+
+| # | Punto del plan | Estado |
+|---|---|---|
+| 1 | Modelo de cues con cola | ✅ Cola por zona con `inicio`; secuencias con `pasos` |
+| 2 | Transporte | ✅ SSE + polling de respaldo (ver arriba) |
+| 3 | Reloj monotónico y re-sincronización | ✅ |
+| 4 | Admin para teléfono | ✅ Paneles plegables; botón Cortar secuencia |
+| 5 | Setlist precargado | ✅ Motor listo y ejemplo en `demo`; faltan los tiempos reales de cada canción |
+| 6 | Service worker | ✅ `public/sw.js`, red primero con respaldo guardado |
+| 7 | Botón manual de respaldo | ✅ Color manual en el panel del show; aviso tras 30 s sin señal |
+| 8 | Telemetría | ⏸ No se hizo: el panel ya cuenta teléfonos por zona y por tipo de conexión |
+| 9 | Mapa del recinto | ✅ Movistar Arena y Teatro Caupolicán (repositorio privado) |
+| §3.5 | Cues idempotentes y segundo admin | ✅ Id por envío y 4 reintentos |
+| — | Prueba de carga | ✅ Local con 10.000; falta una prueba contra Railway |
+
 Cruza el brief técnico (red celular, admin en el público, Santander Arena, ~15.500 personas) con el prototipo actual.
 
 ## 1. Qué del brief ya está hecho en el prototipo

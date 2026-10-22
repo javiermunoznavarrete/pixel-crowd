@@ -250,3 +250,36 @@ test('el reproductor mantiene la capa anterior hasta el inicio programado', () =
   assert.strictEqual(r.capa('G1', futuro - 1).id, 1);
   assert.strictEqual(r.capa('G1', futuro).id, 2);
 });
+
+test('secuencia: el reproductor sigue cada paso a su hora, incluso con la cola recibida de una vez', () => {
+  const r = Show.crearReproductor();
+  const t = Date.now() + 1000;
+  r.actualizar({ cola: { G1: [{ id: 1, color: '#000000', inicio: 0 }] } });
+  r.actualizar({ cola: { G1: [
+    { id: 1, color: '#000000', inicio: 0 },
+    { id: 2, color: '#ff0000', inicio: t },
+    { id: 3, color: '#00ff00', inicio: t + 30000 },
+    { id: 4, color: '#0000ff', inicio: t + 60000 },
+  ] } });
+  assert.deepStrictEqual([t - 1, t, t + 29999, t + 30000, t + 90000].map((x) => r.capa('G1', x).id), [1, 2, 2, 3, 4]);
+  assert.strictEqual(r.proxima('G1', t + 1).id, 3);
+});
+
+test('secuencia: si el servidor ya podó la capa que sonaba, se mantiene hasta el primer paso nuevo', () => {
+  const r = Show.crearReproductor();
+  r.actualizar({ cola: { G1: [{ id: 1, color: '#000000', inicio: 0 }] } });
+  const t = Date.now() + 5000;
+  r.actualizar({ cola: { G1: [{ id: 7, color: '#ffffff', inicio: t }] } });
+  assert.strictEqual(r.capa('G1', t - 1).id, 1);
+  assert.strictEqual(r.capa('G1', t).id, 7);
+});
+
+test('reloj: entre varias muestras se queda con la de menor ida y vuelta', () => {
+  const S = cargarShow();
+  // Servidor adelantado 1000 ms. Las muestras con RTT alto (asimétrico) darían errores de hasta 200 ms.
+  S.agregarMuestra(1000 + 200, 0, 400);
+  S.agregarMuestra(5000 + 1000 + 10, 5000, 5020);
+  S.agregarMuestra(9000 + 1000 + 150, 9000, 9300);
+  assert.strictEqual(S.reloj.rtt, 20);
+  assert.strictEqual(S.reloj.offset, 1000);
+});

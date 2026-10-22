@@ -73,7 +73,7 @@
   <aside>
     <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
     <h1>Panel del operador</h1>
-    <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos ·
+    <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos<span id="debiles"></span> ·
       <a id="enlace-qr" href="#" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>
     <div class="estado"><span id="titulo-evento"></span> · <a href="/" style="color:inherit">Otros eventos</a></div>
 
@@ -126,6 +126,7 @@
       <h2>Escenas rápidas</h2>
       <div class="tabs" id="tabs" role="tablist"></div>
       <div class="info-concierto" id="info-concierto" hidden></div>
+      <button class="aplicar" id="cortar" hidden style="margin:0 0 10px;background:#5a1020">■ Cortar secuencia (deja el efecto actual)</button>
       <div class="escenas" id="escenas"></div>
     </section>
 
@@ -262,25 +263,44 @@
   }
 
   // ---- Envío ----
-  async function enviar(asignaciones, etiqueta, reintento = false) {
+  // cuerpo: { asignaciones } (un cambio), { pasos } (secuencia) o { cancelar: true }.
+  // Cada envío lleva un id: si la red falla, se reintenta con el mismo id y el servidor no lo aplica
+  // dos veces (sirve también con un segundo operador de respaldo en otra parte del recinto).
+  const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+  async function enviar(cuerpo, etiqueta, { id = nuevoId(), intento = 0, reintentoClave = false } = {}) {
+    if (Array.isArray(cuerpo)) cuerpo = { asignaciones: cuerpo };
+    $('msg').textContent = intento ? `… reintentando (${intento})` : '…';
     try {
       const r = await fetch(Show.api('/escena'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-sesion': Sesion.get() },
-        body: JSON.stringify({ asignaciones, adelantoMs: +$('adelanto').value || 300 }),
+        body: JSON.stringify({ ...cuerpo, id, adelantoMs: +$('adelanto').value || 300 }),
       });
       const d = await r.json();
-      if (r.status === 401 && !reintento) {
+      if (r.status === 401 && !reintentoClave) {
         // Sesión vencida (o servidor reiniciado): pedir la clave y reenviar la misma escena una vez
         Sesion.borrar();
         await pedirClave('La sesión venció. Ingresa la clave de nuevo.');
-        return enviar(asignaciones, etiqueta, true);
+        return enviar(cuerpo, etiqueta, { id, reintentoClave: true });
       }
-      $('msg').textContent = r.ok ? `✓ ${etiqueta}` : `✗ ${d.error}`;
+      if (!r.ok) { $('msg').textContent = `✗ ${d.error}`; return; }
+      const duracion = d.fin && d.fin > d.inicio ? ` · secuencia de ${d.pasos} pasos, ${formatoDuracion(d.fin - d.inicio)}` : '';
+      $('msg').textContent = `✓ ${etiqueta}${duracion}`;
+      secuenciaHasta = !d.cancelado && d.pasos > 1 ? d.fin : 0;
+      $('cortar').hidden = !(secuenciaHasta > Date.now());
     } catch (e) {
-      $('msg').textContent = '✗ Sin conexión con el servidor';
+      // Sin red: hasta 4 reintentos con esperas crecientes (0,5 · 1 · 2 · 4 s), con el mismo id
+      if (intento < 4) {
+        await new Promise((ok) => setTimeout(ok, 500 * 2 ** intento));
+        return enviar(cuerpo, etiqueta, { id, intento: intento + 1, reintentoClave });
+      }
+      $('msg').textContent = '✗ Sin conexión con el servidor: no se aplicó';
     }
   }
+  const formatoDuracion = (ms) => `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+  let secuenciaHasta = 0;
+  setInterval(() => { if (secuenciaHasta && secuenciaHasta < Date.now()) { secuenciaHasta = 0; $('cortar').hidden = true; } }, 1000);
+  $('cortar').onclick = () => enviar({ cancelar: true }, 'Secuencia cortada (sigue el efecto actual)');
 
   $('aplicar').onclick = () => {
     if (!seleccion.size) { $('msg').textContent = 'Selecciona al menos una zona'; return; }
@@ -319,7 +339,10 @@
       id: evento.slug, titulo: evento.pestana || evento.titulo, subtitulo: evento.subtitulo, nota: evento.nota,
       presets: evento.presets.map((p) => ({
         ...p,
-        fn: () => p.asignaciones.map((a) => ({ zonas: resolverZonas(a.zonas), capa: a.capa })),
+        // Un preset es un cambio (asignaciones) o una secuencia de pasos con su segundo de inicio
+        fn: () => (p.pasos
+          ? { pasos: p.pasos.map((paso) => ({ enMs: Math.round((paso.en || 0) * 1000), asignaciones: paso.asignaciones.map((a) => ({ zonas: resolverZonas(a.zonas), capa: a.capa })) })) }
+          : p.asignaciones.map((a) => ({ zonas: resolverZonas(a.zonas), capa: a.capa }))),
       })),
     });
   }
@@ -333,7 +356,7 @@
     for (const p of pestana.presets) {
       const b = document.createElement('button');
       b.className = 'escena' + (p.destacado ? ' destacada' : '') + (p.cancion ? ' con-cancion' : '');
-      b.innerHTML = (p.cancion ? `<small>${p.cancion}</small>` : '') + `<span>${p.nombre}</span>`;
+      b.innerHTML = (p.cancion ? `<small>${p.cancion}</small>` : '') + `<span>${p.nombre}</span>` + (p.pasos ? `<small>▶ secuencia · ${p.pasos.length} pasos</small>` : '');
       if (p.descripcion) b.title = p.descripcion;
       b.onclick = () => enviar(p.fn(), (p.cancion ? p.cancion + ' — ' : '') + p.nombre);
       $('escenas').appendChild(b);
@@ -390,6 +413,8 @@
     sesion: Sesion.get(),
     alStats: (s) => {
       $('total').textContent = s.publico;
+      // Teléfonos cuya red no sostiene la conexión y consultan cada pocos segundos
+      $('debiles').textContent = s.porConsultas ? ` (${s.porConsultas} con señal débil)` : '';
       for (const [z, n] of Object.entries(s.porZona)) {
         const el = $('n-' + z);
         if (!el) continue;

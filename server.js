@@ -6,8 +6,8 @@
 //   /<evento>/operador     → panel del operador
 //   /<evento>/simulador    → vista del recinto con teléfonos virtuales
 //   /<evento>/conectar     → QR para proyectar
-// Cada evento tiene su propio estado en vivo. Los teléfonos lo reciben por Server-Sent Events y calculan
-// sus colores localmente.
+// Cada evento tiene su propio estado en vivo. Los teléfonos lo reciben por Server-Sent Events (o, si su
+// red no lo permite, consultando /estado cada pocos segundos) y calculan sus colores localmente.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -109,10 +109,14 @@ function cargarEventos() {
     const ev = {
       slug, def: { ...def, slug }, ...datosRecinto,
       huellaClave: clave ? huella(clave) : null,
-      estado: { version: 0, capas: {} },
+      // cola: por zona, la capa que está sonando y las que vienen, ordenadas por inicio. Varias zonas
+      // comparten el mismo objeto de capa cuando reciben el mismo cambio.
+      estado: { version: 0, cola: {} },
       ultimaOcupacion: '',
+      estadoTexto: null, // estado serializado (se arma una vez por cambio, no una vez por teléfono)
     };
-    for (const z of ev.zonas) ev.estado.capas[z] = nuevaCapa({ efecto: 'pulso', color: '#3a2a80', color2: '#000000', bpm: 30 }, 0);
+    const reposo = nuevaCapa({ efecto: 'pulso', color: '#3a2a80', color2: '#000000', bpm: 30 }, 0);
+    for (const z of ev.zonas) ev.estado.cola[z] = [reposo];
     eventos.set(slug, ev);
   }
   if (!eventos.size) throw new Error(`No hay eventos en ${DIR_EVENTOS}`);
@@ -177,36 +181,60 @@ function ubicacionDe(ev, params) {
   return SUBZONAS.has(sub) ? { subzona: sub } : null;
 }
 
-// ---------- Clientes SSE ----------
+// ---------- Clientes ----------
+// Por conexión abierta (SSE), o por consultas periódicas a /estado para los teléfonos cuya red no
+// sostiene la conexión: esos se recuerdan unos segundos después de cada consulta.
 const clientes = new Set(); // { res, ev, rol, zona, ubicacion }
+const CONSULTA_MS = Number(process.env.CONSULTA_MS) || 3000;
+const consultantes = new Map(); // disp → { ev, rol: 'publico', zona, ubicacion, vence }
+
+// Todos los teléfonos del público de un evento, por cualquiera de las dos vías
+function* publicoDe(ev) {
+  for (const c of clientes) if (c.ev === ev && c.rol === 'publico') yield c;
+  for (const c of consultantes.values()) if (c.ev === ev) yield c;
+}
 
 function enviar(res, evento, datos) {
   res.write(`event: ${evento}\ndata: ${JSON.stringify(datos)}\n\n`);
 }
 
+// Estado tal como viaja a los teléfonos: cada capa una sola vez (capas: id → capa) y la cola de cada
+// zona como lista de ids. Con 32 zonas que reciben el mismo cambio pesa ~1 KB en vez de ~18 KB.
+function estadoJson(ev) {
+  if (ev.estadoTexto) return ev.estadoTexto;
+  const capas = {}, cola = {};
+  for (const [z, lista] of Object.entries(ev.estado.cola)) {
+    cola[z] = lista.map((c) => { capas[c.id] = c; return c.id; });
+  }
+  return (ev.estadoTexto = JSON.stringify({ version: ev.estado.version, capas, cola }));
+}
+
 function difundirEstado(ev) {
-  for (const c of clientes) if (c.ev === ev) enviar(c.res, 'estado', ev.estado);
+  const mensaje = `event: estado
+data: ${estadoJson(ev)}
+
+`;
+  for (const c of clientes) if (c.ev === ev) c.res.write(mensaje);
 }
 
 function stats(ev) {
   const porZona = Object.fromEntries(ev.zonas.map((z) => [z, 0]));
-  let publico = 0, conexiones = 0;
-  for (const c of clientes) {
-    if (c.ev !== ev) continue;
-    conexiones++;
-    if (c.rol !== 'publico') continue;
+  let publico = 0, conexiones = 0, porConsultas = 0;
+  for (const c of clientes) if (c.ev === ev) conexiones++;
+  for (const c of publicoDe(ev)) {
     publico++;
+    if (!c.res) porConsultas++;
     if (c.zona in porZona) porZona[c.zona]++;
   }
-  return { publico, porZona, conexiones };
+  return { publico, porZona, conexiones, porConsultas };
 }
 
 // Qué asientos tienen un teléfono conectado y cuántos hay en cada subzona de las zonas generales
 function ocupacion(ev) {
   const bits = Buffer.alloc(Math.ceil(ev.total / 8));
   const generales = {};
-  for (const c of clientes) {
-    if (c.ev !== ev || c.rol !== 'publico' || !c.ubicacion) continue;
+  for (const c of publicoDe(ev)) {
+    if (!c.ubicacion) continue;
     if (c.ubicacion.asiento !== undefined) bits[c.ubicacion.asiento >> 3] |= 1 << (c.ubicacion.asiento & 7);
     else {
       const g = (generales[c.zona] ||= {});
@@ -218,8 +246,16 @@ function ocupacion(ev) {
 
 const OBSERVADORES = new Set(['operador', 'simulador']);
 
+// Cada 2 s: conteos al panel y ocupación al panel y al simulador. Al público, una señal de vida cada
+// 16 s: basta para que el proxy de Railway (corta tras 60 s sin datos) no cierre la conexión, y con
+// miles de teléfonos ahorra muchas escrituras.
+let vuelta = 0;
 setInterval(() => {
+  const t = Date.now();
+  for (const [disp, c] of consultantes) if (c.vence < t) consultantes.delete(disp);
+  const pingPublico = ++vuelta % 8 === 0;
   for (const ev of eventos.values()) {
+    podarColas(ev, t);
     const s = stats(ev);
     const o = ocupacion(ev);
     const oJson = JSON.stringify(o);
@@ -228,11 +264,29 @@ setInterval(() => {
     for (const c of clientes) {
       if (c.ev !== ev) continue;
       if (c.rol === 'operador') enviar(c.res, 'stats', s);
-      if (OBSERVADORES.has(c.rol) && cambio) enviar(c.res, 'ocupacion', o);
-      if (c.rol !== 'operador') c.res.write(': ping\n\n'); // mantiene viva la conexión a través de proxies
+      else if (OBSERVADORES.has(c.rol)) { if (cambio) enviar(c.res, 'ocupacion', o); else c.res.write(': ping\n\n'); }
+      else if (pingPublico) c.res.write(': ping\n\n');
     }
   }
 }, 2000);
+
+// GET /api/e/<evento>/estado?zona=…&disp=… — para los teléfonos que consultan en vez de mantener la
+// conexión. Responde 304 si el estado no cambió desde su última consulta (ETag = versión) y en cada
+// respuesta envía la hora del servidor (muestra de reloj) y cada cuánto volver a consultar.
+function responderEstado(ev, req, res, url) {
+  const disp = url.searchParams.get('disp');
+  if (disp && /^[0-9a-z-]{8,64}$/i.test(disp)) {
+    consultantes.set(disp, { ev, rol: 'publico', zona: url.searchParams.get('zona'), ubicacion: ubicacionDe(ev, url.searchParams), vence: Date.now() + CONSULTA_MS * 3 });
+  }
+  const etag = `"${ev.slug}-${ev.estado.version}"`;
+  const cabeceras = {
+    'Cache-Control': 'no-store', ETag: etag, 'X-Ahora': String(Date.now()), 'X-Consulta-Ms': String(CONSULTA_MS),
+    'Access-Control-Expose-Headers': 'ETag, X-Ahora, X-Consulta-Ms',
+  };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, cabeceras); return res.end(); }
+  res.writeHead(200, { ...cabeceras, 'Content-Type': 'application/json' });
+  res.end(estadoJson(ev));
+}
 
 // ---------- Aportes de números de silla ----------
 // En zonas sin numerar (p. ej. las graderías del Caupolicán) el público puede indicar, de forma opcional,
@@ -391,23 +445,74 @@ async function iniciarSesion(req, res) {
   json(res, 200, { sesion, vence, alcance });
 }
 
-// POST /api/e/<evento>/escena  { asignaciones: [{ zonas: ['G1'] | 'todas', capa: {...} }], adelantoMs }
+// Deja en cada cola solo la capa que está sonando y las que vienen
+function podarColas(ev, t = Date.now()) {
+  for (const [z, cola] of Object.entries(ev.estado.cola)) {
+    let i = 0;
+    while (i + 1 < cola.length && cola[i + 1].inicio <= t) i++;
+    if (i > 0) { ev.estado.cola[z] = cola.slice(i); ev.estadoTexto = null; }
+  }
+}
+
+// Envíos ya aplicados, por id (los genera el panel): si la red del operador falla y el panel
+// reintenta, el mismo envío no se aplica dos veces.
+const enviosRecientes = new Map(); // id → { respuesta, vence }
+const MAX_PASOS = 200;
+const MAX_DURACION_SECUENCIA_MS = 20 * 60 * 1000;
+
+// POST /api/e/<evento>/escena
+//   { id?, asignaciones: [{ zonas: ['G1'] | 'todas', capa: {...} }], adelantoMs }   → un cambio
+//   { id?, pasos: [{ enMs, asignaciones }], adelantoMs }                             → una secuencia
+//   { id?, cancelar: true }                                → corta lo programado (sigue lo que suena)
+// Un cambio nuevo en una zona reemplaza todo lo que estaba programado para después en esa zona.
 async function aplicarEscena(ev, req, res) {
   if (!sesionValida(req.headers['x-sesion'], ev)) return json(res, 401, { error: 'Sesión inválida o vencida: vuelve a ingresar la clave' });
   let datos;
   try { datos = JSON.parse(await leerCuerpo(req)); } catch { return json(res, 400, { error: 'JSON inválido' }); }
-  if (!Array.isArray(datos.asignaciones)) return json(res, 400, { error: 'faltan asignaciones' });
 
+  const ahora = Date.now();
+  for (const [k, v] of enviosRecientes) if (v.vence < ahora) enviosRecientes.delete(k);
+  const id = typeof datos.id === 'string' && datos.id.length <= 64 ? `${ev.slug}|${datos.id}` : null;
+  if (id && enviosRecientes.has(id)) return json(res, 200, { ...enviosRecientes.get(id).respuesta, repetido: true });
+
+  podarColas(ev, ahora);
   // Los cambios se programan un poco en el futuro para que todos los teléfonos cambien a la vez.
-  const adelanto = Math.min(5000, Math.max(0, Number(datos.adelantoMs) || 300));
-  const inicio = Date.now() + adelanto;
-  for (const a of datos.asignaciones) {
-    const zonas = a.zonas === 'todas' ? ev.zonas : (Array.isArray(a.zonas) ? a.zonas.filter((z) => ev.zonas.includes(z)) : []);
-    for (const z of zonas) ev.estado.capas[z] = nuevaCapa(a.capa || {}, inicio);
+  const adelanto = Math.min(10000, Math.max(0, Number(datos.adelantoMs) || 300));
+  const inicio = ahora + adelanto;
+  let respuesta;
+
+  if (datos.cancelar) {
+    for (const [z, cola] of Object.entries(ev.estado.cola)) {
+      ev.estado.cola[z] = cola.filter((c) => c.inicio <= ahora);
+    }
+    respuesta = { ok: true, cancelado: true };
+  } else {
+    const pasos = Array.isArray(datos.pasos) ? datos.pasos : Array.isArray(datos.asignaciones) ? [{ enMs: 0, asignaciones: datos.asignaciones }] : null;
+    if (!pasos || !pasos.length) return json(res, 400, { error: 'faltan asignaciones o pasos' });
+    if (pasos.length > MAX_PASOS) return json(res, 400, { error: `Máximo ${MAX_PASOS} pasos por secuencia` });
+
+    const nuevas = {}; // zona → [capas]
+    for (const p of pasos) {
+      const en = Math.min(MAX_DURACION_SECUENCIA_MS, Math.max(0, Number(p.enMs) || 0));
+      for (const a of Array.isArray(p.asignaciones) ? p.asignaciones : []) {
+        const zonas = a.zonas === 'todas' ? ev.zonas : (Array.isArray(a.zonas) ? a.zonas.filter((z) => ev.zonas.includes(z)) : []);
+        const capa = nuevaCapa(a.capa || {}, inicio + en); // una capa compartida por todas sus zonas
+        for (const z of zonas) (nuevas[z] ||= []).push(capa);
+      }
+    }
+    for (const [z, capas] of Object.entries(nuevas)) {
+      capas.sort((a, b) => a.inicio - b.inicio);
+      ev.estado.cola[z] = ev.estado.cola[z].filter((c) => c.inicio < inicio).concat(capas);
+    }
+    const fin = Math.max(...Object.values(nuevas).flat().map((c) => c.inicio), inicio);
+    respuesta = { ok: true, inicio, fin, pasos: pasos.length };
   }
   ev.estado.version++;
+  ev.estadoTexto = null;
+  respuesta.version = ev.estado.version;
+  if (id) enviosRecientes.set(id, { respuesta, vence: ahora + 10 * 60 * 1000 });
   difundirEstado(ev);
-  json(res, 200, { ok: true, version: ev.estado.version, inicio });
+  json(res, 200, respuesta);
 }
 
 function suscribir(ev, req, res, url) {
@@ -426,7 +531,10 @@ function suscribir(ev, req, res, url) {
   const cliente = { res, ev, rol, zona: url.searchParams.get('zona') };
   if (rol === 'publico') cliente.ubicacion = ubicacionDe(ev, url.searchParams);
   clientes.add(cliente);
-  enviar(res, 'estado', ev.estado);
+  res.write(`event: estado
+data: ${estadoJson(ev)}
+
+`);
   if (rol === 'operador') enviar(res, 'stats', stats(ev));
   if (OBSERVADORES.has(rol)) enviar(res, 'ocupacion', ocupacion(ev));
   req.on('close', () => clientes.delete(cliente));
@@ -440,7 +548,7 @@ function apiEvento(ev, accion, req, res, url) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' });
       return res.end(ev.json);
     case 'events': return suscribir(ev, req, res, url);
-    case 'estado': return json(res, 200, ev.estado);
+    case 'estado': return responderEstado(ev, req, res, url);
     case 'red': return json(res, 200, { urls: urlsEvento(ev) });
     case 'escena': return req.method === 'POST' ? aplicarEscena(ev, req, res) : json(res, 405, { error: 'Usa POST' });
     case 'aporte': return req.method === 'POST' ? recibirAporte(ev, req, res) : json(res, 405, { error: 'Usa POST' });

@@ -42,6 +42,9 @@ const escena = (cuerpo, sesion = SESION, ev = 'prueba-a') => fetch(`${BASE}/api/
   method: 'POST', headers: { 'Content-Type': 'application/json', 'x-sesion': sesion }, body: JSON.stringify(cuerpo),
 });
 const estadoDe = async (ev) => (await fetch(`${BASE}/api/e/${ev}/estado`)).json();
+// El estado viaja compacto: capas = { id: capa }, cola = { zona: [id…] }
+const colaDe = (estado, zona) => estado.cola[zona].map((id) => estado.capas[id]);
+const capaDe = (estado, zona) => colaDe(estado, zona).at(-1);
 
 // Abre un stream SSE y devuelve los eventos recibidos a medida que llegan.
 function abrirSSE(query, ev = 'prueba-a') {
@@ -145,10 +148,10 @@ test('una escena llega por SSE solo a las zonas indicadas, programada en el futu
   await esperar(200);
   sse.cerrar();
   const ultimo = sse.eventos.filter((e) => e.evento === 'estado').at(-1).datos;
-  assert.strictEqual(ultimo.capas.G1.efecto, 'ola');
-  assert.strictEqual(ultimo.capas.G1.color, '#00ff00');
-  assert.ok(ultimo.capas.G1.inicio >= antes + 450);
-  assert.notStrictEqual(ultimo.capas.G2.efecto, 'ola');
+  assert.strictEqual(capaDe(ultimo, 'G1').efecto, 'ola');
+  assert.strictEqual(capaDe(ultimo, 'G1').color, '#00ff00');
+  assert.ok(capaDe(ultimo, 'G1').inicio >= antes + 450);
+  assert.notStrictEqual(capaDe(ultimo, 'G2').efecto, 'ola');
 });
 
 test('dos eventos no se mezclan: escenas, teléfonos y conteos van por separado', async () => {
@@ -158,9 +161,9 @@ test('dos eventos no se mezclan: escenas, teléfonos y conteos van por separado'
   await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#123456' } }] }, SESION, 'prueba-b');
   await esperar(200);
   // El teléfono de A no recibió la escena de B
-  assert.ok(!telA.eventos.some((e) => e.evento === 'estado' && e.datos.capas.G3.color === '#123456'));
-  assert.ok(telB.eventos.some((e) => e.evento === 'estado' && e.datos.capas.G3.color === '#123456'));
-  assert.notStrictEqual((await estadoDe('prueba-a')).capas.G3.color, '#123456');
+  assert.ok(!telA.eventos.some((e) => e.evento === 'estado' && capaDe(e.datos, 'G3').color === '#123456'));
+  assert.ok(telB.eventos.some((e) => e.evento === 'estado' && capaDe(e.datos, 'G3').color === '#123456'));
+  assert.notStrictEqual(capaDe((await estadoDe('prueba-a')), 'G3').color, '#123456');
   // El operador de B cuenta solo los teléfonos de B
   const telB2 = abrirSSE('rol=publico&zona=G1', 'prueba-b');
   const opB = abrirSSE('rol=operador&sesion=' + SESION, 'prueba-b');
@@ -174,9 +177,9 @@ test('sanea parámetros peligrosos o inválidos', async () => {
   await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'hackeo', color: 'red', hz: 40 } }] });
   await escena({ asignaciones: [{ zonas: ['CANCHA'], capa: { efecto: 'estrobo', hz: 40 } }] });
   const estado = await estadoDe('prueba-a');
-  assert.strictEqual(estado.capas.G2.efecto, 'solido');
-  assert.strictEqual(estado.capas.G2.color, '#ffffff');
-  assert.strictEqual(estado.capas.CANCHA.hz, 3);
+  assert.strictEqual(capaDe(estado, 'G2').efecto, 'solido');
+  assert.strictEqual(capaDe(estado, 'G2').color, '#ffffff');
+  assert.strictEqual(capaDe(estado, 'CANCHA').hz, 3);
 });
 
 test('el operador recibe la ocupación real: asiento declarado y subzona de cancha', async () => {
@@ -243,6 +246,72 @@ test('aportes de número de silla: se validan, se guardan por recinto sin repeti
 });
 
 // Al final: deja la IP bloqueada un minuto
+test('secuencia: todos los pasos quedan en la cola con su hora; un cambio nuevo reemplaza lo que venía', async () => {
+  const r = await (await escena({
+    adelantoMs: 1000,
+    pasos: [
+      { enMs: 0, asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#ff0000' } }] },
+      { enMs: 30000, asignaciones: [{ zonas: ['G1'], capa: { efecto: 'solido', color: '#00ff00' } }] },
+      { enMs: 60000, asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#0000ff' } }] },
+    ],
+  })).json();
+  assert.strictEqual(r.pasos, 3);
+  assert.strictEqual(r.fin - r.inicio, 60000);
+  let e = await estadoDe('prueba-a');
+  assert.deepStrictEqual(colaDe(e, 'G1').slice(-3).map((c) => [c.color, c.inicio - r.inicio]), [['#ff0000', 0], ['#00ff00', 30000], ['#0000ff', 60000]]);
+  assert.deepStrictEqual(colaDe(e, 'CANCHA').slice(-2).map((c) => c.color), ['#ff0000', '#0000ff']);
+
+  // Un cambio nuevo en G1 borra lo programado después en G1, pero no en las otras zonas
+  await escena({ asignaciones: [{ zonas: ['G1'], capa: { efecto: 'solido', color: '#ffffff' } }], adelantoMs: 0 });
+  e = await estadoDe('prueba-a');
+  assert.ok(!colaDe(e, 'G1').some((c) => c.color === '#0000ff'));
+  assert.strictEqual(colaDe(e, 'G1').at(-1).color, '#ffffff');
+  assert.strictEqual(colaDe(e, 'CANCHA').at(-1).color, '#0000ff');
+
+  // Cortar secuencia: se va todo lo futuro y sigue lo que ya sonaba
+  await escena({ cancelar: true });
+  e = await estadoDe('prueba-a');
+  for (const zona of Object.keys(e.cola)) assert.ok(colaDe(e, zona).every((c) => c.inicio <= Date.now() + 50), 'no quedan cambios futuros');
+});
+
+test('un reintento con el mismo id no aplica el cambio dos veces', async () => {
+  const cuerpo = { id: 'envio-123', asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#123456' } }] };
+  const a = await (await escena(cuerpo)).json();
+  const b = await (await escena(cuerpo)).json();
+  assert.strictEqual(b.repetido, true);
+  assert.strictEqual(b.version, a.version);
+  assert.strictEqual((await estadoDe('prueba-a')).version, a.version);
+});
+
+test('consultas a /estado: 304 si no cambió, hora del servidor en cada respuesta y cuentan en la ocupación', async () => {
+  const q = 'zona=CANCHA&profundidad=adelante&lado=der&disp=telefono-de-prueba-1';
+  const t0 = Date.now();
+  const r1 = await fetch(`${BASE}/api/e/prueba-a/estado?${q}`);
+  assert.strictEqual(r1.status, 200);
+  const ahora = Number(r1.headers.get('x-ahora'));
+  assert.ok(Math.abs(ahora - t0) < 2000, 'trae la hora del servidor');
+  assert.ok(Number(r1.headers.get('x-consulta-ms')) >= 1000);
+  const etag = r1.headers.get('etag');
+  const r2 = await fetch(`${BASE}/api/e/prueba-a/estado?${q}`, { headers: { 'If-None-Match': etag } });
+  assert.strictEqual(r2.status, 304);
+
+  // El operador lo ve como teléfono conectado "con señal débil"
+  const op = abrirSSE(`rol=operador&sesion=${SESION}`);
+  await esperar(2300);
+  const stats = op.eventos.filter((e) => e.evento === 'stats').at(-1).datos;
+  const ocup = op.eventos.filter((e) => e.evento === 'ocupacion').at(-1).datos;
+  op.cerrar();
+  assert.ok(stats.porConsultas >= 1);
+  assert.ok(stats.porZona.CANCHA >= 1);
+  assert.ok(ocup.generales.CANCHA['adelante-der'] >= 1);
+
+  // Tras un cambio, la misma consulta trae el estado nuevo
+  await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido', color: '#abcdef' } }] });
+  const r3 = await fetch(`${BASE}/api/e/prueba-a/estado?${q}`, { headers: { 'If-None-Match': etag } });
+  assert.strictEqual(r3.status, 200);
+  assert.strictEqual(capaDe(await r3.json(), 'CANCHA').color, '#abcdef');
+});
+
 test('bloquea la IP un minuto tras 5 claves incorrectas seguidas', async () => {
   for (let i = 0; i < 5; i++) await login('mala' + i);
   const r = await login('secreto'); // incluso con la clave correcta, mientras dure el bloqueo

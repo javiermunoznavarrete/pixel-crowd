@@ -16,25 +16,50 @@
   const api = (ruta) => `/api/e/${evento}${ruta}`;
 
   // ---------- Reloj sincronizado (estilo NTP) ----------
-  const reloj = { offset: 0, rtt: null };
+  // La hora local es monotónica (performance.now), así un ajuste automático de la hora del teléfono
+  // en pleno show no desfasa los colores. offset = hora del servidor − hora local.
+  const local = typeof performance !== 'undefined' && performance.timeOrigin
+    ? () => performance.timeOrigin + performance.now()
+    : () => Date.now();
+  const reloj = { offset: 0, rtt: null, muestras: [] }; // muestras: las últimas { rtt, offset, t }
 
-  async function sincronizarReloj(muestras = 6) {
-    let mejor = null;
-    for (let i = 0; i < muestras; i++) {
-      try {
-        const t0 = Date.now();
-        const r = await fetch('/api/time', { cache: 'no-store' });
-        const { t } = await r.json();
-        const t1 = Date.now();
-        const rtt = t1 - t0;
-        if (!mejor || rtt < mejor.rtt) mejor = { rtt, offset: t + rtt / 2 - t1 };
-      } catch (e) { /* reintenta en la siguiente muestra */ }
-    }
-    if (mejor) { reloj.offset = mejor.offset; reloj.rtt = mejor.rtt; }
-    return mejor;
+  // Una muestra = hora del servidor recibida con su tiempo de ida y vuelta. Se queda la de menor RTT
+  // entre las recientes (la más precisa); las muy viejas se descartan porque los relojes derivan.
+  function agregarMuestra(tServidor, t0, t1) {
+    const rtt = t1 - t0;
+    if (!Number.isFinite(tServidor) || rtt < 0) return;
+    reloj.muestras.push({ rtt, offset: tServidor + rtt / 2 - t1, t: t1 });
+    reloj.muestras = reloj.muestras.filter((m) => t1 - m.t < 10 * 60 * 1000).slice(-12);
+    const mejor = reloj.muestras.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+    reloj.offset = mejor.offset;
+    reloj.rtt = mejor.rtt;
   }
 
-  const ahora = () => Date.now() + reloj.offset;
+  async function sincronizarReloj(muestras = 6) {
+    for (let i = 0; i < muestras; i++) {
+      try {
+        const t0 = local();
+        const r = await fetch('/api/time', { cache: 'no-store' });
+        const { t } = await r.json();
+        agregarMuestra(t, t0, local());
+      } catch (e) { /* reintenta en la siguiente muestra */ }
+    }
+    return reloj.rtt === null ? null : { rtt: reloj.rtt, offset: reloj.offset };
+  }
+
+  // Sincronización continua sin estampidas: la primera, tras una espera al azar de hasta 2 s (si
+  // miles de teléfonos abren la página a la vez, no consultan todos en el mismo instante); después,
+  // cada ~4 min con 3 muestras. alSincronizar recibe { rtt } para mostrar la precisión.
+  function mantenerReloj(alSincronizar) {
+    const ciclo = async (muestras) => {
+      const r = await sincronizarReloj(muestras);
+      if (r && alSincronizar) alSincronizar(r);
+      setTimeout(() => ciclo(3), 4 * 60 * 1000 * (0.8 + Math.random() * 0.4));
+    };
+    setTimeout(() => ciclo(6), Math.random() * 2000);
+  }
+
+  const ahora = () => local() + reloj.offset;
 
   // ---------- Recinto ----------
   // Agrega a cada sector numerado su grilla (fila/columna por asiento) y a cada sector
@@ -408,31 +433,55 @@
   }
 
   // ---------- Estado de zonas con cambios programados ----------
-  // Cada capa trae "inicio" (hora del servidor). Hasta ese instante sigue la capa anterior,
-  // así todos los teléfonos cambian juntos aunque el mensaje llegue con distinto retraso.
+  // Cada zona tiene una cola de capas ordenadas por "inicio" (hora del servidor): la que está sonando y
+  // las que vienen (p. ej. los pasos de la secuencia de una canción). En cada instante manda la última
+  // que ya empezó; así todos los teléfonos cambian juntos aunque el mensaje llegue con distinto retraso,
+  // y una secuencia ya recibida sigue corriendo aunque se corte la red.
   function crearReproductor() {
-    const zonas = {};
+    const zonas = {}; // zona → { cola: [capa…], anterior: capa }
+    const vigente = (z, t) => {
+      let c = null;
+      for (const capa of z.cola) { if ((capa.inicio || 0) <= t) c = capa; else break; }
+      return c || z.anterior;
+    };
     return {
       actualizar(estado) {
-        for (const [zona, capa] of Object.entries(estado.capas)) {
+        // Formato compacto: capas = { id: capa } y cola = { zona: [id…] }. (Sin cola: formato
+        // anterior, una capa por zona.)
+        const colas = estado.cola
+          ? Object.fromEntries(Object.entries(estado.cola).map(([zona, l]) => [zona, l.map((c) => (typeof c === 'object' ? c : estado.capas[c])).filter(Boolean)]))
+          : Object.fromEntries(Object.entries(estado.capas).map(([zona, c]) => [zona, [c]]));
+        const t = ahora();
+        for (const [zona, cola] of Object.entries(colas)) {
+          if (!cola.length) continue;
           const z = zonas[zona];
-          if (!z) zonas[zona] = { prev: capa, cur: capa };
-          else if (z.cur.id !== capa.id) {
-            if (ahora() >= z.cur.inicio) z.prev = z.cur;
-            z.cur = capa;
-          }
+          // Lo que está sonando ahora sigue hasta que empiece lo nuevo
+          const anterior = z ? vigente(z, t) : cola[0];
+          zonas[zona] = { cola: cola.slice().sort((a, b) => (a.inicio || 0) - (b.inicio || 0)), anterior };
         }
       },
       capa(zona, t) {
         const z = zonas[zona];
-        if (!z) return null;
-        return t >= (z.cur.inicio || 0) ? z.cur : z.prev;
+        return z ? vigente(z, t) : null;
+      },
+      // Próximo cambio programado de una zona (para mostrar la cuenta regresiva en el panel)
+      proxima(zona, t) {
+        const z = zonas[zona];
+        return z ? z.cola.find((c) => (c.inicio || 0) > t) || null : null;
       },
     };
   }
 
   // ubicacion (solo público): se informa al servidor para mostrar la ocupación real en el panel
   // sesion (operador/simulador): token entregado por /api/login
+  //
+  // Transporte: una conexión abierta (Server-Sent Events), que entrega cada cambio al instante con muy
+  // poco costo para el servidor. Si en la red del teléfono no funciona (algunos proxies de las
+  // compañías la retienen o la cortan una y otra vez), el público pasa a consultar el estado cada
+  // pocos segundos. alConexion(ok, modo) con modo 'directo' | 'consultas'.
+  const ESPERA_APERTURA_MS = 10000; // sin abrir en este tiempo → consultas
+  const MAX_CORTES = 4; // cortes en 2 minutos antes de pasar a consultas
+
   function conectar({ rol, zona, ubicacion, sesion, alEstado, alStats, alOcupacion, alConexion }) {
     const q = new URLSearchParams({ rol });
     if (zona) q.set('zona', zona);
@@ -440,13 +489,81 @@
     if (ubicacion) {
       for (const k of ['fila', 'asiento', 'profundidad', 'lado']) if (ubicacion[k] !== undefined) q.set(k, ubicacion[k]);
     }
-    const es = new EventSource(api('/events?') + q);
+    const aviso = (ok, modo) => alConexion && alConexion(ok, modo);
+    let es = null, consultas = null, cerrado = false;
+    let cortes = [];
+
+    const pasarAConsultas = () => {
+      if (es) { es.close(); es = null; }
+      if (!consultas && !cerrado) consultas = consultarEstado(q, { alEstado, alConexion: (ok) => aviso(ok, 'consultas') });
+    };
+
+    es = new EventSource(api('/events?') + q);
+    let abierta = false;
+    // Solo el público tiene respaldo: el panel y el simulador necesitan los conteos en vivo
+    const espera = rol === 'publico' ? setTimeout(() => { if (!abierta) pasarAConsultas(); }, ESPERA_APERTURA_MS) : null;
     es.addEventListener('estado', (e) => alEstado && alEstado(JSON.parse(e.data)));
     es.addEventListener('stats', (e) => alStats && alStats(JSON.parse(e.data)));
     es.addEventListener('ocupacion', (e) => alOcupacion && alOcupacion(decodificarOcupacion(JSON.parse(e.data))));
-    es.onopen = () => alConexion && alConexion(true);
-    es.onerror = () => alConexion && alConexion(false);
-    return es;
+    es.onopen = () => { abierta = true; aviso(true, 'directo'); };
+    es.onerror = () => {
+      aviso(false, 'directo');
+      if (rol !== 'publico') return;
+      const t = Date.now();
+      cortes = cortes.filter((c) => t - c < 2 * 60 * 1000).concat(t);
+      if (cortes.length >= MAX_CORTES) pasarAConsultas();
+    };
+    return {
+      close() {
+        cerrado = true;
+        clearTimeout(espera);
+        if (es) es.close();
+        if (consultas) consultas.close();
+      },
+    };
+  }
+
+  // Consulta /estado cada ~3 s (lo que indique el servidor), con ±20 % al azar para no llegar todos
+  // juntos y esperas crecientes si falla. "If-None-Match" evita reenviar el estado si no cambió, y
+  // la hora del servidor en cada respuesta sirve de muestra para el reloj.
+  function consultarEstado(q, { alEstado, alConexion }) {
+    const params = new URLSearchParams(q);
+    params.delete('rol');
+    params.set('disp', idDispositivo());
+    let etag = '', fallos = 0, timer = null, cerrado = false;
+    const ciclo = async () => {
+      let siguiente = 3000;
+      try {
+        const t0 = local();
+        const r = await fetch(api('/estado?') + params, { cache: 'no-store', headers: etag ? { 'If-None-Match': etag } : {} });
+        const t1 = local();
+        agregarMuestra(Number(r.headers.get('X-Ahora')), t0, t1);
+        siguiente = Number(r.headers.get('X-Consulta-Ms')) || siguiente;
+        if (r.status === 200) { etag = r.headers.get('ETag') || ''; alEstado && alEstado(await r.json()); }
+        else if (r.status !== 304) throw new Error(r.status);
+        fallos = 0;
+        alConexion(true);
+      } catch (e) {
+        fallos++;
+        alConexion(false);
+        siguiente = Math.min(15000, 1000 * 2 ** fallos);
+      }
+      if (!cerrado) timer = setTimeout(ciclo, siguiente * (0.8 + Math.random() * 0.4));
+    };
+    ciclo();
+    return { close() { cerrado = true; clearTimeout(timer); } };
+  }
+
+  // Identificador anónimo y estable del teléfono (para contar ocupación sin datos personales)
+  function idDispositivo() {
+    const nuevo = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+    try {
+      let id = localStorage.getItem('pc-dispositivo');
+      if (!id) { id = nuevo(); localStorage.setItem('pc-dispositivo', id); }
+      return id;
+    } catch (e) {
+      return idDispositivo.memoria ||= nuevo();
+    }
   }
 
   // { totalAsientos, asientos: base64 bitset, generales } → { ocupado(idx), generales, totalAsientos }
@@ -486,7 +603,7 @@
   const css = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
 
   window.Show = {
-    evento, api, cargarEvento, reloj, ahora, sincronizarReloj, cargarRecinto, prepararRecinto, posicionDe, relEnRect, vistaEn, colorEn, css, indiceAsientos,
+    evento, api, cargarEvento, reloj, ahora, sincronizarReloj, mantenerReloj, agregarMuestra, idDispositivo, cargarRecinto, prepararRecinto, posicionDe, relEnRect, vistaEn, colorEn, css, indiceAsientos,
     crearReproductor, conectar, EFECTOS, PROFUNDIDADES, LADOS, MAX_HZ_ESTROBO,
   };
 })();

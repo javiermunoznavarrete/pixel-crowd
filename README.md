@@ -60,9 +60,11 @@ npm test             # tests del motor de efectos y del servidor
 
 ## Cómo funciona
 
-1. Cada teléfono sincroniza su reloj con el servidor (`/api/time`, estilo NTP) cada 30 s.
-2. El operador aplica una **capa** (efecto + parámetros) a una o varias zonas. El servidor la programa unos 300 ms en el futuro y la difunde por Server-Sent Events.
-3. Cada teléfono calcula **localmente** su color en cada cuadro con `colorEn(capa, posición, horaServidor)` (en `public/show.js`). No hay mensajes por cuadro, todos cambian a la vez y, si la red se cae, el efecto en curso sigue corriendo.
+1. Cada teléfono sincroniza su reloj con el servidor (`/api/time`, estilo NTP): al abrir (tras una espera al azar de hasta 2 s, para que miles de teléfonos no consulten en el mismo instante) y luego cada ~4 min. Se queda con la muestra de menor ida y vuelta y mide el tiempo con `performance.now()`, así un ajuste automático de la hora del teléfono no lo desfasa.
+2. El operador aplica una **capa** (efecto + parámetros) a una o varias zonas, o una **secuencia** de capas con su segundo de inicio. El servidor las programa en el futuro y las difunde por Server-Sent Events.
+3. Cada teléfono guarda la **cola** de cambios de su zona y calcula **localmente** su color en cada cuadro con `colorEn(capa, posición, horaServidor)` (en `public/show.js`). No hay mensajes por cuadro, todos cambian a la vez y, si la red se cae, el efecto en curso y el resto de la secuencia siguen corriendo.
+4. Si la conexión abierta no funciona en la red del teléfono (no abre en 10 s o se corta 4 veces en 2 min), el teléfono pasa solo a **consultar** `/estado` cada ~3 s (con `ETag`, ±20 % al azar y esperas crecientes si falla). El panel los muestra como "con señal débil".
+5. La web del público queda guardada en el teléfono (service worker): quien abre el link antes del concierto puede abrirla aunque la red del recinto esté saturada. Si el show se detiene, la persona puede elegir un **color manual** desde el panel que aparece al tocar la pantalla.
 
 Efectos disponibles: sólido, pulso (BPM), estrobo suave (**máximo 3 Hz** por seguridad fotosensible), ola con dirección, onda desde el escenario, arcoíris y texto en mosaico (solo en sectores numerados).
 
@@ -83,6 +85,16 @@ Cada evento es una carpeta `data/eventos/<evento>/` con un `evento.json`. Cada u
 - **`fechaISO`** decide si el evento aparece como próximo, de hoy o terminado (hora de Chile). Un evento terminado muestra un cierre en vez del mapa.
 - **`"oculto": true`** lo saca de la lista pública, pero su dirección sigue funcionando (sirve para ensayos).
 - **`zonas`** en los presets: `todas`, `numeradas` (sectores con asiento), `generales` (cancha y zonas sin numerar) o una lista de IDs.
+- **Secuencias:** un preset puede traer `pasos` en vez de `asignaciones`, cada uno con su segundo de inicio (`en`). Un toque programa la canción completa y, si la red se cae a la mitad, los teléfonos ya tienen el resto. Cualquier cambio nuevo en una zona reemplaza lo que venía para esa zona, y el botón **Cortar secuencia** borra lo programado dejando el efecto actual. Ejemplo en `data/eventos/demo/evento.json`:
+
+```json
+{ "cancion": "…", "nombre": "Canción completa", "pasos": [
+  { "en": 0,  "asignaciones": [ { "zonas": "todas", "capa": { "efecto": "pulso", "color": "#2d7bff", "bpm": 80 } } ] },
+  { "en": 40, "asignaciones": [ { "zonas": "todas", "capa": { "efecto": "bandera", "modo": "completa" } } ] }
+] }
+```
+
+- **Reintentos:** cada envío del panel lleva un id. Si la red del operador falla, el panel reintenta hasta 4 veces con el mismo id y el servidor no lo aplica dos veces. Se puede tener un segundo operador de respaldo (misma clave) en otra parte del recinto.
 
 Eventos actuales: `babymetal-2026` (BABYMETAL, Movistar Arena) y `atarashii-gakko-2026` (ATARASHII GAKKO!, Teatro Caupolicán), ambos el jueves 3 de diciembre de 2026, más `demo` (oculto, con el estadio de prueba).
 
@@ -123,10 +135,33 @@ Donde no hay mapa numerado (las graderías y palcos del Caupolicán, o cualquier
 
 ## Límites del prototipo (pendiente para producción)
 
-- **Escala:** un proceso Node con SSE aguanta unos pocos miles de conexiones. Para un estadio hay que pasar a un broadcast distribuido (Cloudflare Durable Objects, Ably, Pusher o un clúster con Redis pub/sub) con CDN.
-- **Show precargado:** hoy los efectos se lanzan en vivo. Lo siguiente es una línea de tiempo por canción descargada antes del show, que solo necesite la señal de "arranca".
+- **Escala:** probado con 10.000 teléfonos simulados en un solo proceso Node (ver **Prueba de carga**). Falta repetir la prueba contra Railway, que agrega su proxy y la red real.
+- **Secuencias por canción:** el motor ya las soporta; falta cargar los tiempos reales de cada canción (se toman del ensayo o de la grabación).
 - **Brillo y linterna:** la web no puede subir el brillo ni usar la linterna en iPhone. Eso requiere app nativa.
 - **Recintos curvos:** la grilla del mosaico usa el orden de los asientos dentro de cada fila. En galerías muy curvas conviene proyectar por coordenadas.
+
+## Prueba de carga
+
+`tools/carga.js` simula miles de teléfonos conectados a un evento (con su sincronización de reloj) y mide cuánto tarda en llegarles cada cambio de escena:
+
+```
+node tools/carga.js --url http://localhost:3000 --evento demo --telefonos 10000 --clave <clave> --minutos 2
+```
+
+Opciones: `--modo poll` (teléfonos en modo consultas), `--zona`, `--escenas`, `--reloj-s`, `--muestras`, `--muestras-luego`, `--espera-inicial-ms`. Un solo PC con Windows llega a unas 13.000 conexiones. Contra producción, úsalo solo a propósito: cada teléfono simulado es una conexión real.
+
+Resultados en el recinto del Movistar Arena (32 zonas), 10.000 teléfonos, servidor local, antes y después de los cambios de robustez:
+
+| | Antes | Después |
+|---|---|---|
+| Teléfonos conectados | 9.552 (448 fallidos) | 10.000 |
+| Cambio de escena: llegada p50 / p95 | 1,0–1,4 s / 1,4–1,9 s | 0,2–0,6 s / 0,4–0,7 s |
+| Consultas de reloj al servidor | ~1.900 por segundo | ~125 por segundo |
+| Reloj: ida y vuelta p95 (en régimen) | 22–274 ms | 3–4 ms |
+| CPU del servidor (en régimen) | 14–38 % de un núcleo | 0–7 % |
+| RAM | 343 MB | 177 MB |
+
+En modo consultas (3.000 teléfonos cada ~3 s) el cambio llega a todos en un máximo de 3,6 s, sin errores.
 
 ## Licencia
 

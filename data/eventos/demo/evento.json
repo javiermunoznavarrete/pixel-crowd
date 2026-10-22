@@ -20,6 +20,21 @@
       "asignaciones": [{ "zonas": "numeradas", "capa": { "efecto": "texto", "color": "#ffffff", "color2": "#c4002b", "velocidad": 12, "texto": "PIXEL CROWD" } }]
     },
     {
+      "cancion": "Ejemplo de secuencia",
+      "nombre": "Canción completa",
+      "descripcion": "Un solo toque programa toda la canción: si la red se cae a la mitad, los teléfonos ya tienen el resto",
+      "pasos": [
+        { "en": 0, "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "pulso", "color": "#2d7bff", "color2": "#000000", "bpm": 80 } }] },
+        { "en": 12, "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "ola", "color": "#00e5ff", "color2": "#05051a", "velocidad": 25, "angulo": 0 } }] },
+        { "en": 24, "asignaciones": [
+          { "zonas": "numeradas", "capa": { "efecto": "texto", "color": "#ffffff", "color2": "#c4002b", "velocidad": 12, "texto": "PIXEL CROWD" } },
+          { "zonas": "generales", "capa": { "efecto": "pulso", "color": "#c4002b", "color2": "#200006", "bpm": 120 } }
+        ] },
+        { "en": 40, "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "bandera", "modo": "completa", "velocidad": 30 } }] },
+        { "en": 55, "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#000000" } }] }
+      ]
+    },
+    {
       "nombre": "Apagón",
       "descripcion": "Todo en negro",
       "asignaciones": [{ "zonas": "todas", "capa": { "efecto": "solido", "color": "#000000" } }]

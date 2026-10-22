@@ -77,6 +77,7 @@
 (async function () {
   const $ = (id) => document.getElementById(id);
   Portada.hero($('hero'));
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
   const texto = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function fila(e) {

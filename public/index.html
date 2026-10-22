@@ -101,6 +101,12 @@
   .punto.ok { background: var(--ok); }
   #pista { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 0; right: 0; text-align: center; font-size: 13px;
     color: rgba(255, 255, 255, 0.7); text-shadow: 0 1px 3px #000; transition: opacity 1s; }
+  #manual { margin-top: 14px; padding-top: 12px; border-top: 1px solid #444; }
+  #manual p { margin: 0 0 8px; font-size: 13px; color: #bbb; }
+  #manual .colores { display: flex; gap: 8px; }
+  #manual .colores button { flex: 1; margin: 0; height: 40px; padding: 0; border-radius: 10px; border: 2px solid #555; }
+  #manual .colores button[aria-pressed="true"] { border-color: #fff; }
+  #capa-info #volver-show { background: #fff; color: #000; border-color: #fff; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -191,6 +197,17 @@
     <div class="fila"><span>Ubicación</span><strong id="info-ubic"></strong></div>
     <div class="fila"><span>Conexión</span><span><span class="punto" id="info-punto"></span><span id="info-con">—</span></span></div>
     <div class="fila"><span>Sincronía</span><span id="info-sync">—</span></div>
+    <div id="manual">
+      <p>¿Se detuvo el show o te quedaste sin señal? Elige un color y sigue alumbrando.</p>
+      <div class="colores">
+        <button data-color="#ff1a1a" style="background:#ff1a1a" aria-label="Rojo"></button>
+        <button data-color="#ffffff" style="background:#ffffff" aria-label="Blanco"></button>
+        <button data-color="#1f4fff" style="background:#1f4fff" aria-label="Azul"></button>
+        <button data-color="#ffd400" style="background:#ffd400" aria-label="Amarillo"></button>
+        <button data-color="#ff2fa8" style="background:#ff2fa8" aria-label="Rosado"></button>
+      </div>
+      <button id="volver-show" hidden>Volver al show</button>
+    </div>
     <button id="cambiar">Cambiar ubicación</button>
   </div>
 </div>
@@ -403,13 +420,7 @@
     }
   }
   // Identificador anónimo del teléfono (al azar, solo para no contar dos veces el mismo aporte)
-  function dispositivo() {
-    try {
-      let id = localStorage.getItem('pc-dispositivo');
-      if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('pc-dispositivo', id); }
-      return id;
-    } catch (e) { return 'sin-almacenamiento-' + Math.random().toString(16).slice(2, 10); }
-  }
+  const dispositivo = Show.idDispositivo;
 
   $('listo-zona').onclick = () => {
     if (!celdaSel) return;
@@ -470,15 +481,42 @@
     conexion = Show.conectar({
       rol: 'publico', zona: u.sector, ubicacion: u,
       alEstado: (e) => reproductor.actualizar(e),
-      alConexion: (ok) => {
+      alConexion: (ok, modo) => {
         $('info-punto').classList.toggle('ok', ok);
-        $('info-con').textContent = ok ? 'Conectado' : 'Reconectando… (el show sigue)';
+        $('info-con').textContent = !ok ? 'Reconectando… (el show sigue)' : modo === 'consultas' ? 'Conectado (señal débil)' : 'Conectado';
+        if (ok) { sinSenalDesde = 0; return; }
+        if (!sinSenalDesde) sinSenalDesde = Date.now();
       },
     });
   }
 
+  // Sin señal por más de 30 s: el show sigue con lo que el teléfono ya recibió, pero se avisa que
+  // existe el modo manual por si el show se detiene.
+  let sinSenalDesde = 0, avisado = false;
+  setInterval(() => {
+    const largo = sinSenalDesde && Date.now() - sinSenalDesde > 30000;
+    if (largo && !avisado && !manual) {
+      $('pista').textContent = 'Sin señal: el show sigue. Si se detiene, toca la pantalla y elige un color.';
+      $('pista').style.opacity = 1;
+    } else if (!largo && avisado) {
+      $('pista').style.opacity = 0;
+    }
+    avisado = !!largo && !manual;
+  }, 2000);
+
+  // Modo manual: un color fijo elegido por la persona, hasta que vuelva al show
+  let manual = null;
+  function elegirManual(color) {
+    manual = color;
+    document.querySelectorAll('#manual .colores button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.color === color)));
+    $('volver-show').hidden = !color;
+    $('pista').style.opacity = 0;
+  }
+  document.querySelectorAll('#manual .colores button').forEach((b) => { b.onclick = () => elegirManual(b.dataset.color); });
+  $('volver-show').onclick = () => elegirManual(null);
+
   $('show').onclick = (e) => {
-    if (e.target.id === 'cambiar') return;
+    if (e.target.closest('#capa-info')) return;
     $('capa-info').classList.toggle('visible');
   };
   $('cambiar').onclick = () => {
@@ -489,19 +527,14 @@
     mostrarPaso('paso-sector');
   };
 
-  // Reloj: sincroniza al inicio y cada 30 s
-  async function sync() {
-    const r = await Show.sincronizarReloj();
-    if (r) $('info-sync').textContent = `±${Math.round(r.rtt / 2)} ms`;
-  }
-  sync();
-  setInterval(sync, 30000);
+  // Reloj: sincroniza al inicio (con una espera al azar) y cada ~4 min
+  Show.mantenerReloj((r) => { $('info-sync').textContent = `±${Math.round(r.rtt / 2)} ms`; });
 
   let ultimo = '';
   function cuadro() {
     if (posicion) {
       const t = Show.ahora();
-      const color = Show.css(Show.colorEn(reproductor.capa(posicion.zona, t), posicion, t));
+      const color = manual || Show.css(Show.colorEn(reproductor.capa(posicion.zona, t), posicion, t));
       if (color !== ultimo) { $('show').style.background = color; ultimo = color; }
     }
     requestAnimationFrame(cuadro);
@@ -529,6 +562,9 @@
 
   // ---- Portada viva ----
   Portada.hero($('hero'), { activo: () => $('paso-sector').classList.contains('activo') });
+
+  // Guarda la app en el teléfono para que abra aunque la red del recinto esté saturada
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();
 </script>
 </body>
