@@ -5,33 +5,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pixel Crowd · Conéctate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #0b0b10; --texto: #f2f2f7; --suave: #9a9ab0; --acento: #ff3d7f; }
+  /* Pantalla que se proyecta en el recinto: colores y letra de la marca, todo grande y legible de lejos */
+  :root { --bg: #15122A; --texto: #FFF1E0; --suave: #A39DCC; --acento: #FF2E4D; --display: "Unbounded", system-ui, sans-serif; }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--texto);
-    font: 18px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    font: 18px/1.4 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px 16px; text-align: center; }
-  h1 { font-size: clamp(28px, 5vw, 56px); margin: 0; letter-spacing: -0.02em; }
-  p { color: var(--suave); margin: 0; }
-  .marca { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.2em; font-size: clamp(14px, 2vw, 20px); }
-  .marca .logo { width: 1.4em; height: 1.4em; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 4.4vw, 52px); margin: 0; letter-spacing: -0.01em; max-width: 22ch; }
+  p { color: var(--suave); margin: 0; font-size: clamp(16px, 2vw, 24px); }
+  .marca { display: inline-flex; align-items: center; gap: 12px; font-family: var(--display); font-weight: 800; font-size: clamp(16px, 2.2vw, 26px); }
+  .marca .logo { width: 1.2em; height: 1.2em; }
   .pie { margin-top: 12px; font-size: 13px; color: var(--suave); }
   .pie a { color: inherit; }
-  #qr { background: #fff; padding: 16px; border-radius: 20px; width: min(70vh, 86vw); aspect-ratio: 1; }
+  #qr { background: #fff; padding: 16px; border-radius: 20px; width: min(52vh, 86vw); aspect-ratio: 1; }
+  /* Proyector o pantalla ancha: el código a la izquierda y los textos a la derecha, todo en una pantalla */
+  @media (min-aspect-ratio: 5/4) and (min-width: 900px) {
+    main { display: grid; grid-template-columns: auto minmax(0, 34em); column-gap: 6vw; row-gap: 18px; justify-content: center; align-content: center; text-align: left;
+      grid-template-areas: "qr marca" "qr evento" "qr titulo" "qr sub" "qr url" "qr instr" "qr consejos" "qr otras" "pie pie"; }
+    main > .marca { grid-area: marca; justify-self: start; }
+    main > .evento { grid-area: evento; }
+    main > h1 { grid-area: titulo; max-width: none; }
+    main > p:not([id]):not(.consejos) { grid-area: sub; }
+    main > #qr { grid-area: qr; width: min(80vh, 44vw); align-self: center; }
+    main > .url { grid-area: url; font-size: clamp(22px, 2.3vw, 36px); }
+    main > #instruccion { grid-area: instr; }
+    main > .consejos { grid-area: consejos; }
+    main > .otras { grid-area: otras; }
+    main > .pie { grid-area: pie; text-align: center; }
+  }
   #qr svg { width: 100%; height: 100%; display: block; }
-  .url { font-size: clamp(20px, 3.4vw, 40px); font-weight: 700; color: var(--acento); word-break: break-all; }
+  .url { font-family: var(--display); font-size: clamp(22px, 3.6vw, 44px); font-weight: 700; color: var(--acento); overflow-wrap: normal; word-break: normal; }
+  .consejos { color: var(--texto); font-weight: 700; }
+  .evento { color: var(--texto); }
+  .evento strong { font-family: var(--display); }
+  .url span { white-space: nowrap; }
   .otras { font-size: 14px; }
   .otras button { font: inherit; color: var(--suave); background: none; border: 1px solid #333; border-radius: 999px; padding: 4px 10px; margin: 4px; cursor: pointer; }
 </style>
 </head>
 <body>
 <main>
-  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
+  <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="0" width="3" height="3" fill="#FFF1E0"/><rect x="8" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="0" y="4" width="3" height="3" fill="#FFF1E0"/><rect x="4" y="4" width="3" height="3" fill="#FF2E4D"/><rect x="8" y="4" width="3" height="3" fill="#3A3366"/><rect x="0" y="8" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="8" width="3" height="3" fill="#3A3366"/><rect x="8" y="8" width="3" height="3" fill="#FFF1E0"/></svg>pixel crowd</div>
+  <p class="evento" id="evento" hidden></p>
   <h1>Escanea y enciende tu pantalla</h1>
   <p>Solo tu teléfono: sin pulseras, sin apps, sin instalar nada.</p>
   <div id="qr"></div>
   <div class="url" id="url">—</div>
-  <p>Conéctate a la misma WiFi y abre la cámara del teléfono.</p>
+  <p id="instruccion">Apunta la cámara del teléfono al código.</p>
+  <p class="consejos">Sube el brillo al máximo y no bloquees el teléfono.</p>
   <div class="otras" id="otras"></div>
   <footer class="pie">
     Pixel Crowd © 2026 Javier Julian Muñoz Navarrete · Licencias comerciales y contratación del servicio:
@@ -48,13 +73,24 @@
     fetch(`/api/e/${evento}/evento`).then((r) => r.json()),
   ]);
   document.title = `Pixel Crowd · ${datos.titulo}`;
-  document.querySelector('h1').textContent = `${datos.titulo}: escanea y enciende tu pantalla`;
+  const ev = document.getElementById('evento');
+  ev.append(Object.assign(document.createElement('strong'), { textContent: datos.titulo }), datos.lugar ? ` en el ${datos.lugar}` : '');
+  ev.hidden = false;
   function mostrar(url) {
     const qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
     document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
-    document.getElementById('url').textContent = url.replace(/\/$/, '');
+    // Se muestra sin "https://" para que sea corta y fácil de escribir si alguien no puede escanear
+    // Si no cabe en una línea, se corta solo después de "/" (nunca a mitad de una palabra)
+    const corta = url.replace(/^https:\/\//, '').replace(/\/$/, '');
+    const el = document.getElementById('url');
+    el.textContent = '';
+    corta.split('/').forEach((parte, i) => { if (i) el.append('/', document.createElement('wbr')); el.append(Object.assign(document.createElement('span'), { textContent: parte })); });
+    // En el recinto la app funciona con datos móviles; solo en una prueba de red local hace falta la misma WiFi
+    document.getElementById('instruccion').textContent = url.startsWith('http://')
+      ? 'Conéctate a la misma WiFi y apunta la cámara del teléfono al código.'
+      : 'Apunta la cámara del teléfono al código. Funciona con datos móviles, sin instalar nada.';
   }
   if (!urls.length) {
     document.getElementById('url').textContent = 'Sin red local: conecta el PC a la WiFi';
