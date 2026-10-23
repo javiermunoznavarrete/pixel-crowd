@@ -71,12 +71,14 @@
   }
   .vista iframe { flex: 1; width: 100%; border: 0; min-height: 600px; }
   [hidden] { display: none !important; }
+  /* Hasta confirmar la sesión no se muestra el panel: sin sesión solo se ve el ingreso de la clave */
+  body.verificando .app { visibility: hidden; }
   .cambiar-evento { display: block; margin: 0 0 12px; }
   .cambiar-evento select { width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel); color: var(--texto); font: inherit; font-weight: 600; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
-<body>
+<body class="verificando">
 <div class="app">
   <aside>
     <div class="marca"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="0" width="3" height="3" fill="#fff"/><rect x="8" y="0" width="3" height="3" fill="#ff3d7f"/><rect x="0" y="4" width="3" height="3" fill="#fff"/><rect x="4" y="4" width="3" height="3" fill="#ff3d7f"/><rect x="8" y="4" width="3" height="3" fill="#4a4a5e"/><rect x="0" y="8" width="3" height="3" fill="#ff3d7f"/><rect x="4" y="8" width="3" height="3" fill="#4a4a5e"/><rect x="8" y="8" width="3" height="3" fill="#fff"/></svg>PIXEL CROWD</div>
@@ -222,6 +224,7 @@
     });
   }
   if ((await Sesion.verificar()) !== true) await pedirClave();
+  document.body.classList.remove('verificando');
   document.querySelector('.vista iframe').src = `/${Show.evento}/simulador?embed`;
   $('enlace-qr').href = `/${Show.evento}/conectar`;
   $('salir').onclick = async () => { await Sesion.salir(); location.reload(); };

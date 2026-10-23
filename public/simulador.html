@@ -33,9 +33,11 @@
   .frontal .t span { color: var(--suave); }
   #frontales { max-height: 70vh; overflow-y: auto; }
   [hidden] { display: none !important; }
+  /* Hasta confirmar la sesión solo se ve el aviso: el simulador es una herramienta del administrador */
+  body.verificando > *:not(#indicador):not(script) { visibility: hidden; }
 </style>
 </head>
-<body>
+<body class="verificando">
 <header>
   <h1>Pixel Crowd · Simulador del estadio</h1>
   <div class="modo" role="group" aria-label="Modo">
@@ -73,9 +75,10 @@
 
   // El simulador muestra la ocupación real: requiere la sesión del administrador
   if ((await Sesion.verificar()) !== true) {
-    $('indicador').innerHTML = '<span class="dato">Ingresa la clave en el <a href="/' + Show.evento + '/operador" style="color:inherit"><b>panel del operador</b></a> y recarga esta página.</span>';
+    $('indicador').innerHTML = '<span class="dato">El simulador es para el administrador. <a href="/admin" style="color:inherit"><b>Ingresa la clave</b></a> y vuelve a abrirlo.</span>';
     return;
   }
+  document.body.classList.remove('verificando');
 
   const recinto = await Show.cargarRecinto();
   const reproductor = Show.crearReproductor();
