@@ -40,7 +40,7 @@ npm start            # o: node server.js   (Node 18+; sin dependencias)
 | Simulador | `http://localhost:3000/<evento>/simulador` |
 
 Las direcciones antiguas (`/operador`, `/conectar`, `/simulador`) llevan al próximo evento. Para probar con teléfonos reales, deben estar en la misma red WiFi que el PC; el servidor imprime las direcciones al arrancar.
-Variables: `PORT` (por defecto 3000), `CLAVE_ADMIN` (clave general; tiene prioridad sobre `clave-admin.txt`), `CLAVE_EVENTO_<SLUG>` (clave de un evento), `URL_PUBLICO` (dirección base para los QR, p. ej. el dominio de Railway) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
+Variables: `PORT` (por defecto 3000), `CLAVE_ADMIN` (clave general; tiene prioridad sobre `clave-admin.txt`), `CLAVE_EVENTO_<SLUG>` (clave de un evento), `URL_PUBLICO` (dirección base para los QR, en producción `https://pixelcrowd.cl/`), `ORIGEN_SECRETO` (ver **Seguridad**), `MAX_CONEXIONES`, `MAX_CONEXIONES_POR_IP` y `MAX_PEDIDOS_IP_10S` (topes contra abusos) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
 
 ### Entrada del administrador
 
@@ -61,6 +61,15 @@ Librerías incluidas en `public/vendor/` (se sirven desde el PC, funcionan sin i
 ```bash
 npm test             # tests del motor de efectos y del servidor
 ```
+
+## Seguridad
+
+En producción todo el tráfico entra por **Cloudflare**, que agrega a cada pedido una cabecera secreta (`x-pixel-origen`). Con `ORIGEN_SECRETO` definido, el servidor rechaza con 403 lo que no la trae, así que nadie se salta Cloudflare entrando por la dirección de Railway, y la IP real del visitante (`cf-connecting-ip`) es confiable.
+
+- **Login:** bloqueo por IP real, cada vez más largo (1, 5, 15 y 60 minutos) tras 5 claves incorrectas, con demora en cada intento fallido, más un límite de Cloudflare de 10 intentos en 10 segundos. Un intruso no puede bloquear el ingreso de los demás.
+- **Abusos:** topes de conexiones en vivo y de pedidos por IP y en total. Son generosos a propósito, porque en un recinto cientos de teléfonos salen por la misma IP de la compañía.
+- **Navegador:** política de contenido que solo ejecuta los scripts de la app (los escritos en el HTML, por su huella), ninguna página se puede incrustar en otro sitio y `nosniff`.
+- **Emergencia:** en `/admin`, **Cerrar las demás sesiones** expulsa a cualquier otro administrador. Todo lo que hay que hacer el día del show está en [`docs/plan-de-emergencia.md`](docs/plan-de-emergencia.md).
 
 ## Cómo funciona
 
