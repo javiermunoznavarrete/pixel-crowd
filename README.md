@@ -140,6 +140,27 @@ Donde no hay mapa numerado (las graderías y palcos del Caupolicán, o cualquier
 - **Brillo y linterna:** la web no puede subir el brillo ni usar la linterna en iPhone. Eso requiere app nativa.
 - **Recintos curvos:** la grilla del mosaico usa el orden de los asientos dentro de cada fila. En galerías muy curvas conviene proyectar por coordenadas.
 
+## Peso de la página con señal lenta
+
+`tools/medir-carga.js` abre la página del público en Chrome sin ventana, con perfil nuevo y la red limitada a "Slow 3G" (400 kbit/s, 400 ms). Mide cuándo aparece el texto y el mapa, cuánto se descarga (incluido lo que baja el service worker) y, con el servidor apagado, si una segunda visita abre desde lo guardado:
+
+```
+node tools/medir-carga.js --evento babymetal-2026 --red lenta --repeticiones 3   # --servidor <carpeta> para medir otra versión
+```
+
+Resultado en BABYMETAL antes y después de aligerar la página (medianas de 3 corridas, servidor local):
+
+| | Antes | Después |
+|---|---|---|
+| Mapa para elegir sector (red lenta) | 11,6 s | 3,0 s |
+| Mapa con buena señal | 0,8 s | 0,3 s |
+| Descarga total, con Analytics y fuentes | 593 KB | 343 KB |
+| Del servidor propio | 355 KB | 104 KB |
+| Queda guardado tras 1 visita | 3 scripts | página, mapa, evento y scripts |
+| 2ª visita sin red | el mapa no aparece | el mapa aparece en 0,1 s |
+
+Qué cambió: gzip y `ETag` en todo lo que es texto (el canal en vivo no se comprime); el mapa y el evento se piden desde el `<head>`; aviso y reintento si el mapa no carga; el service worker guarda página, mapa y evento en la primera visita y, sin copia guardada, espera a la red en vez de fallar; Analytics y las fuentes se cargan después del mapa (las fuentes no se cargan si el teléfono pide ahorrar datos).
+
 ## Estadísticas del show (internas)
 
 El servidor registra cada **sesión de show**: empieza cuando un evento supera **50 teléfonos conectados** (los ensayos chicos no cuentan) y termina cuando pasa 10 minutos seguidos en 50 o menos. Si vuelve a subir antes (un intermedio, un reinicio del servidor), es la misma sesión. De cada una guarda el **máximo** con su hora y el desglose por zona, y **una muestra por minuto** (total, por zona y cuántos con señal débil). Son solo conteos, sin datos personales.

@@ -8,9 +8,34 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="description" content="Pixel Crowd: tu teléfono es un píxel del show. Sin app, desde el navegador.">
 <title>Pixel Crowd</title>
+<script>
+  // Con señal lenta, lo primero es el mapa: se pide aquí, antes de que bajen los scripts (show.js lo recibe)
+  (function () {
+    var evento = location.pathname.split('/').filter(Boolean)[0];
+    var pedir = function (ruta, opciones) {
+      var p = fetch('/api/e/' + evento + ruta, opciones).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+      p.catch(function () {}); // si falla, show.js lo vuelve a pedir
+      return p;
+    };
+    if (evento) window.pcPrecarga = { recinto: pedir('/recinto'), evento: pedir('/evento', { cache: 'no-store' }) };
+    // Fuentes de la marca (~85 KB): después del mapa, para no quitarle señal (o a los 3 s, lo que pase primero).
+    // Mientras, el texto se ve con la letra del sistema. Si el teléfono pide ahorrar datos, no se cargan.
+    if (!(navigator.connection && navigator.connection.saveData)) {
+      var fuentes = function () {
+        if (fuentes.listo) return;
+        fuentes.listo = true;
+        var f = document.createElement('link');
+        f.rel = 'stylesheet';
+        f.href = 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@700;800&display=swap';
+        document.head.appendChild(f);
+      };
+      window.addEventListener('pc:mapa-listo', fuentes, { once: true });
+      setTimeout(fuentes, 3000);
+    }
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
   /* Noche de arena: índigo profundo, el blanco cálido de una pantalla de teléfono y el rojo zorro de la acción */
   :root {
@@ -72,6 +97,8 @@
   .aviso { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: var(--bruma); color: var(--brillo); font-size: 15px; }
   .aviso p { margin: 0 0 8px; }
   .aviso p:last-child { margin: 0; color: var(--suave); }
+  #aviso-carga p { color: var(--brillo); }
+  #reintentar { margin-top: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--borde); background: transparent; color: var(--brillo); font: inherit; cursor: pointer; }
   .escenario { text-align: center; padding: 10px; border-radius: 10px 10px 4px 4px; background: var(--bruma); color: var(--suave);
     font-size: 14px; margin-bottom: 10px; }
   .grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -118,6 +145,7 @@
   <h1>El público es la pantalla.</h1>
   <p class="intro" id="intro">Esta noche tu teléfono es un píxel. Junto a miles de otros forma olas, colores y una bandera que se ve desde el escenario.</p>
   <p class="evento" id="evento" hidden></p>
+  <div class="aviso" id="aviso-carga" role="status" hidden><p id="aviso-carga-texto"></p><button id="reintentar" type="button">Reintentar ahora</button></div>
 
   <div class="bloque" id="terminado" hidden>
     <a class="principal" href="/" style="display:block;text-align:center;text-decoration:none">Ver los próximos shows</a>
@@ -219,7 +247,49 @@
 <script>
 (async function () {
   const $ = (id) => document.getElementById(id);
-  const [recinto, evento] = await Promise.all([Show.cargarRecinto(), Show.cargarEvento()]);
+
+  // ---- Portada viva ---- (no depende del mapa: arranca de inmediato)
+  Portada.hero($('hero'), { activo: () => $('paso-sector').classList.contains('activo') });
+
+  // ---- Guardar la app en el teléfono ----
+  // Se registra apenas está el mapa (o al primer fallo de carga) y se le pide guardar esta página, el mapa y el
+  // evento: así con una sola visita, la noche del show abre aunque no haya señal. No antes, para no competir con
+  // el mapa por la poca señal; lo que ya bajó se toma de la caché del navegador, sin volver a descargarlo.
+  let swPedido = false;
+  function guardarApp() {
+    if (swPedido || !('serviceWorker' in navigator)) return;
+    swPedido = true;
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.ready.then((reg) => reg.active && reg.active.postMessage({
+      tipo: 'guardar', urls: [location.pathname, Show.api('/recinto'), Show.api('/evento')],
+    })).catch(() => {});
+  }
+
+  // ---- Mapa y evento, con reintentos ----
+  // Con mala señal la descarga puede fallar: se avisa y se reintenta sola, cada vez con más espera (2, 4, 8… hasta 30 s)
+  async function cargarDatos() {
+    for (let intento = 1; ; intento++) {
+      try {
+        const datos = await Promise.all([Show.cargarRecinto(), Show.cargarEvento()]);
+        $('aviso-carga').hidden = true;
+        return datos;
+      } catch (e) {
+        const espera = Math.min(30, 2 ** intento);
+        $('aviso-carga').hidden = false;
+        guardarApp();
+        await new Promise((listo) => {
+          let quedan = espera;
+          const contar = () => { $('aviso-carga-texto').textContent = `No pudimos cargar el mapa (la señal está débil). Reintentando en ${quedan} s…`; };
+          contar();
+          const reloj = setInterval(() => { quedan--; if (quedan <= 0) { clearInterval(reloj); listo(); } else contar(); }, 1000);
+          $('reintentar').onclick = () => { clearInterval(reloj); listo(); };
+        });
+        $('aviso-carga-texto').textContent = 'Cargando el mapa…';
+      }
+    }
+  }
+  const [recinto, evento] = await cargarDatos();
+  guardarApp();
   document.title = `Pixel Crowd · ${evento.titulo}`;
   const CLAVE_UBICACION = 'ubicacion:' + Show.evento; // la ubicación recordada es por evento
 
@@ -360,6 +430,7 @@
   });
   window.addEventListener('resize', dibujarMapa);
   dibujarMapa();
+  window.dispatchEvent(new Event('pc:mapa-listo'));
 
   function elegirSector(s) {
     sector = s;
@@ -566,11 +637,6 @@
     $('evento').hidden = false;
   }
 
-  // ---- Portada viva ----
-  Portada.hero($('hero'), { activo: () => $('paso-sector').classList.contains('activo') });
-
-  // Guarda la app en el teléfono para que abra aunque la red del recinto esté saturada
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();
 </script>
 </body>

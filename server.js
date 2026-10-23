@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -82,7 +83,8 @@ function cargarRecinto(nombre) {
   for (const s of recinto.sectores) {
     if (s.tipo === 'numerada') for (const [fila, asiento] of s.asientos) indice.set(`${s.id}|${fila}|${asiento}`, total++);
   }
-  const datos = { recinto, json: JSON.stringify(recinto), indice, total, zonas: recinto.sectores.map((s) => s.id) };
+  const json = JSON.stringify(recinto);
+  const datos = { recinto, json, jsonGz: zlib.gzipSync(json), etag: etiqueta(json), indice, total, zonas: recinto.sectores.map((s) => s.id) };
   cacheRecintos.set(nombre, datos);
   return datos;
 }
@@ -487,9 +489,29 @@ function urlsEvento(ev) {
   return bases.map((b) => b.replace(/\/?$/, '/') + ev.slug);
 }
 
+// ---------- Respuestas comprimidas ----------
+// Con señal lenta, cada KB cuenta: lo que es texto se envía con gzip si el navegador lo acepta. El canal en
+// vivo (SSE) no pasa por aquí: comprimirlo retendría los mensajes.
+const COMPRIMIBLE = /^(text\/|application\/json|image\/svg)/;
+// (declarada como función para poder usarla al cargar los recintos, que ocurre más arriba al arrancar)
+function etiqueta(cuerpo) { return `"${crypto.createHash('sha1').update(cuerpo).digest('base64url').slice(0, 20)}"`; }
+const aceptaGzip = (req) => /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+
+// cuerpoGz: versión ya comprimida (para lo que no cambia); si falta y conviene, se comprime al vuelo
+function responder(req, res, codigo, cabeceras, cuerpo, cuerpoGz) {
+  const tipo = cabeceras['Content-Type'] || '';
+  const comprimir = aceptaGzip(req) && COMPRIMIBLE.test(tipo) && (cuerpoGz || Buffer.byteLength(cuerpo) > 1400);
+  if (COMPRIMIBLE.test(tipo)) cabeceras.Vary = 'Accept-Encoding';
+  if (comprimir) {
+    res.writeHead(codigo, { ...cabeceras, 'Content-Encoding': 'gzip' });
+    return res.end(cuerpoGz || zlib.gzipSync(cuerpo));
+  }
+  res.writeHead(codigo, cabeceras);
+  res.end(cuerpo);
+}
+
 function json(res, codigo, datos) {
-  res.writeHead(codigo, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(datos));
+  responder(res.req, res, codigo, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, JSON.stringify(datos));
 }
 
 function redirigir(res, destino) {
@@ -637,8 +659,9 @@ function apiEvento(ev, accion, req, res, url) {
   switch (accion) {
     case 'evento': return json(res, 200, { ...ev.def, situacion: situacion(ev.def), requiereClave: requiereClave(ev) });
     case 'recinto':
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' });
-      return res.end(ev.json);
+      // Fijo mientras el servidor corre: 60 s de caché y luego se revalida con ETag (304 sin cuerpo)
+      if (req.headers['if-none-match'] === ev.etag) { res.writeHead(304, { ETag: ev.etag, 'Cache-Control': 'max-age=60' }); return res.end(); }
+      return responder(req, res, 200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60', ETag: ev.etag }, ev.json, ev.jsonGz);
     case 'events': return suscribir(ev, req, res, url);
     case 'estado': return responderEstado(ev, req, res, url);
     case 'red': return json(res, 200, { urls: urlsEvento(ev) });
@@ -654,14 +677,26 @@ function apiEvento(ev, accion, req, res, url) {
 // carga nada de Google.
 const GA4_ID = /^G-[A-Z0-9]+$/.test(process.env.GA4_ID || '') ? process.env.GA4_ID : '';
 
-function estatico(res, archivo) {
+// Archivos de public/: se leen y comprimen una vez (se rehacen si el archivo cambia). Van con "no-cache" +
+// ETag: el navegador y el service worker siempre preguntan, pero si no cambió la respuesta es un 304 vacío.
+const cacheEstaticos = new Map(); // archivo → { mtimeMs, cuerpo, gz, etag }
+
+function estatico(req, res, archivo) {
   const ruta = path.join(PUBLIC, archivo);
   if (!ruta.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
-  fs.readFile(ruta, (err, contenido) => {
-    if (err) { res.writeHead(404); return res.end('No encontrado'); }
-    if (archivo === 'analitica.js') contenido = String(contenido).replace('__GA4_ID__', GA4_ID);
-    res.writeHead(200, { 'Content-Type': TIPOS[path.extname(ruta)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-    res.end(contenido);
+  fs.stat(ruta, (err, info) => {
+    if (err || !info.isFile()) { res.writeHead(404); return res.end('No encontrado'); }
+    let e = cacheEstaticos.get(ruta);
+    if (!e || e.mtimeMs !== info.mtimeMs) {
+      let cuerpo = fs.readFileSync(ruta);
+      if (archivo === 'analitica.js') cuerpo = Buffer.from(String(cuerpo).replace('__GA4_ID__', GA4_ID));
+      const tipo = TIPOS[path.extname(ruta)] || 'application/octet-stream';
+      e = { mtimeMs: info.mtimeMs, cuerpo, tipo, etag: etiqueta(cuerpo), gz: COMPRIMIBLE.test(tipo) && cuerpo.length > 1400 ? zlib.gzipSync(cuerpo) : null };
+      cacheEstaticos.set(ruta, e);
+    }
+    const cabeceras = { 'Content-Type': e.tipo, 'Cache-Control': 'no-cache', ETag: e.etag };
+    if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, cabeceras); return res.end(); }
+    responder(req, res, 200, cabeceras, e.cuerpo, e.gz);
   });
 }
 
@@ -692,17 +727,17 @@ const servidor = http.createServer((req, res) => {
   if (partes[0] === 'api') return json(res, 404, { error: 'No existe' });
 
   // Páginas
-  if (p === '/') return estatico(res, 'eventos.html');
+  if (p === '/') return estatico(req, res, 'eventos.html');
   // Direcciones de antes de los multieventos: /operador, /simulador, /conectar → al evento por defecto
   if (partes.length === 1 && PAGINAS[partes[0]]) return redirigir(res, `/${eventoPorDefecto().slug}/${partes[0]}${url.search}`);
   if (partes.length >= 1 && SLUG.test(partes[0]) && !RESERVADOS.has(partes[0])) {
     const ev = eventos.get(partes[0]);
     if (!ev) return redirigir(res, '/');
-    if (partes.length === 1) return estatico(res, 'index.html');
-    if (partes.length === 2 && PAGINAS[partes[1]]) return estatico(res, PAGINAS[partes[1]]);
+    if (partes.length === 1) return estatico(req, res, 'index.html');
+    if (partes.length === 2 && PAGINAS[partes[1]]) return estatico(req, res, PAGINAS[partes[1]]);
     return redirigir(res, `/${ev.slug}`);
   }
-  return estatico(res, p.slice(1));
+  return estatico(req, res, p.slice(1));
 });
 
 servidor.on('error', (err) => {

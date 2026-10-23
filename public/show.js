@@ -589,14 +589,29 @@
   }
 
   // Datos públicos del evento: título, fecha, lugar, presets, situación (proximo | hoy | terminado)
+  // La página del público pide el mapa y el evento en el <head> (window.pcPrecarga) para no esperar a los
+  // scripts; aquí se usa ese pedido la primera vez. Si falló, los reintentos piden de nuevo.
+  function precarga(clave) {
+    const pc = typeof window !== 'undefined' && window.pcPrecarga;
+    if (!pc || !pc[clave]) return null;
+    const p = pc[clave];
+    pc[clave] = null;
+    return p;
+  }
+
   async function cargarEvento() {
+    const pedido = precarga('evento');
+    if (pedido) return pedido;
     const r = await fetch(api('/evento'), { cache: 'no-store' });
     if (!r.ok) throw new Error('Evento no encontrado');
     return r.json();
   }
 
   async function cargarRecinto() {
+    const pedido = precarga('recinto');
+    if (pedido) return prepararRecinto(await pedido);
     const r = await fetch(api('/recinto'));
+    if (!r.ok) throw new Error('No se pudo cargar el mapa');
     return prepararRecinto(await r.json());
   }
 

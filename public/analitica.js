@@ -27,10 +27,22 @@
   gtag('js', new Date());
   gtag('config', ID, { evento_pc: evento });
 
-  const s = document.createElement('script');
-  s.async = true;
-  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID;
-  document.head.appendChild(s);
+  // El script de Google (~150 KB) se baja después de lo importante para no quitarle señal: en la página del
+  // show, cuando ya está el mapa; en las demás, al terminar de cargar. Lo que pase antes queda en dataLayer.
+  let cargado = false;
+  const cargar = () => {
+    if (cargado) return;
+    cargado = true;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID;
+    document.head.appendChild(s);
+  };
+  if (window.pcPrecarga) {
+    window.addEventListener('pc:mapa-listo', () => setTimeout(cargar, 1000), { once: true });
+    setTimeout(cargar, 60000); // si el mapa nunca carga, igual se mide la visita
+  } else if (document.readyState === 'complete') cargar();
+  else window.addEventListener('load', cargar, { once: true });
 
   window.pcAnalitica = (nombre, datos = {}) => gtag('event', nombre, { evento_pc: evento, ...datos });
 

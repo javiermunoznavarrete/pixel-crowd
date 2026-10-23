@@ -83,6 +83,26 @@ test('GA4: analitica.js sale con el ID configurado y las páginas del público l
   assert.ok(!(await (await fetch(BASE + '/prueba-a/operador')).text()).includes('/analitica.js'));
 });
 
+test('compresión: mapa y scripts con gzip y 304 si no cambiaron; el canal en vivo nunca se comprime', async () => {
+  const gz = { 'Accept-Encoding': 'gzip' };
+  const recinto = await fetch(BASE + '/api/e/prueba-a/recinto', { headers: gz });
+  assert.strictEqual(recinto.headers.get('content-encoding'), 'gzip');
+  const etag = recinto.headers.get('etag');
+  assert.ok(etag);
+  assert.ok((await recinto.json()).sectores.length > 0, 'se descomprime bien');
+  assert.strictEqual((await fetch(BASE + '/api/e/prueba-a/recinto', { headers: { ...gz, 'If-None-Match': etag } })).status, 304);
+
+  const show = await fetch(BASE + '/show.js', { headers: gz });
+  assert.strictEqual(show.headers.get('content-encoding'), 'gzip');
+  assert.strictEqual(show.headers.get('cache-control'), 'no-cache');
+  assert.strictEqual((await fetch(BASE + '/show.js', { headers: { 'If-None-Match': show.headers.get('etag') } })).status, 304);
+  assert.strictEqual((await fetch(BASE + '/show.js', { headers: { 'Accept-Encoding': 'identity' } })).headers.get('content-encoding'), null);
+
+  // SSE: si se comprimiera, los mensajes quedarían retenidos en el compresor
+  const sse = await new Promise((resolve) => http.get(`${BASE}/api/e/prueba-a/events?rol=publico&zona=G1`, { headers: gz }, (res) => { resolve(res.headers); res.destroy(); }));
+  assert.strictEqual(sse['content-encoding'], undefined);
+});
+
 test('la lista pública muestra los eventos visibles ordenados por fecha, sin los ocultos', async () => {
   const lista = await (await fetch(BASE + '/api/eventos')).json();
   assert.deepStrictEqual(lista.map((e) => e.slug), ['prueba-a', 'prueba-b']);
@@ -176,6 +196,7 @@ test('dos eventos no se mezclan: escenas, teléfonos y conteos van por separado'
   assert.notStrictEqual(capaDe((await estadoDe('prueba-a')), 'G3').color, '#123456');
   // El operador de B cuenta solo los teléfonos de B
   const telB2 = abrirSSE('rol=publico&zona=G1', 'prueba-b');
+  await esperar(200); // que el teléfono termine de conectarse antes de que el panel pida su primer conteo
   const opB = abrirSSE('rol=operador&sesion=' + SESION, 'prueba-b');
   await esperar(300);
   const stats = opB.eventos.filter((e) => e.evento === 'stats').at(-1).datos;
