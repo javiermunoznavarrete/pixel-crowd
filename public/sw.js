@@ -43,7 +43,7 @@ function guardable(url) {
   if (url.origin !== self.location.origin) return /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   const p = url.pathname;
   if (p.startsWith('/api/')) return /^\/api\/e\/[a-z0-9-]+\/(evento|recinto)$/.test(p) || p === '/api/eventos';
-  if (/\/(operador|simulador|conectar)$/.test(p)) return false;
+  if (/\/(operador|simulador|conectar|admin)$/.test(p)) return false;
   return true;
 }
 

@@ -92,7 +92,7 @@ function cargarRecinto(nombre) {
 // ---------- Eventos ----------
 const SLUG = /^[a-z0-9][a-z0-9-]{1,60}$/;
 const PAGINAS = { operador: 'operador.html', simulador: 'simulador.html', conectar: 'conectar.html' };
-const RESERVADOS = new Set(['api', 'vendor', ...Object.keys(PAGINAS)]);
+const RESERVADOS = new Set(['api', 'vendor', 'admin', ...Object.keys(PAGINAS)]);
 const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: ZONA_HORARIA }); // AAAA-MM-DD en Chile
 
 function cargarEventos() {
@@ -708,8 +708,11 @@ const servidor = http.createServer((req, res) => {
   // API general
   if (p === '/api/time') return json(res, 200, { t: Date.now() });
   if (p === '/api/eventos') {
-    return json(res, 200, [...eventos.values()].filter((e) => !e.def.oculto).map(resumenPublico)
-      .sort((a, b) => String(a.fechaISO).localeCompare(String(b.fechaISO))));
+    // Con sesión de administrador (clave general) también se listan los eventos ocultos, marcados
+    const admin = !!HUELLA_ADMIN && sesionValida(req.headers['x-sesion'], null);
+    return json(res, 200, [...eventos.values()].filter((e) => admin || !e.def.oculto)
+      .map((e) => ({ ...resumenPublico(e), ...(admin && e.def.oculto ? { oculto: true } : {}) }))
+      .sort((a, b) => String(a.fechaISO).localeCompare(String(b.fechaISO)) || a.titulo.localeCompare(b.titulo)));
   }
   if (p === '/api/login' && req.method === 'POST') return iniciarSesion(req, res);
   if (p === '/api/sesion') {
@@ -728,6 +731,8 @@ const servidor = http.createServer((req, res) => {
 
   // Páginas
   if (p === '/') return estatico(req, res, 'eventos.html');
+  // Entrada del administrador: se ingresa la clave una vez y se elige el evento (antes llevaba al "por defecto")
+  if (p === '/admin' || p === '/operador') return estatico(req, res, 'admin.html');
   // Direcciones de antes de los multieventos: /operador, /simulador, /conectar → al evento por defecto
   if (partes.length === 1 && PAGINAS[partes[0]]) return redirigir(res, `/${eventoPorDefecto().slug}/${partes[0]}${url.search}`);
   if (partes.length >= 1 && SLUG.test(partes[0]) && !RESERVADOS.has(partes[0])) {

@@ -42,6 +42,10 @@ npm start            # o: node server.js   (Node 18+; sin dependencias)
 Las direcciones antiguas (`/operador`, `/conectar`, `/simulador`) llevan al próximo evento. Para probar con teléfonos reales, deben estar en la misma red WiFi que el PC; el servidor imprime las direcciones al arrancar.
 Variables: `PORT` (por defecto 3000), `CLAVE_ADMIN` (clave general; tiene prioridad sobre `clave-admin.txt`), `CLAVE_EVENTO_<SLUG>` (clave de un evento), `URL_PUBLICO` (dirección base para los QR, p. ej. el dominio de Railway) y `ABRIR_NAVEGADOR` (abre las pestañas al arrancar).
 
+### Entrada del administrador
+
+Entra a **`/admin`** (o `/operador`), ingresa la clave general una vez y elige el evento: panel, simulador, QR o página del público. Se listan también los eventos ocultos, como `/demo`. La sesión de la clave general sirve en todos los eventos: dentro del panel, el menú de arriba cambia de evento sin volver a pedir la clave. Con la clave propia de un evento, se entra desde la dirección de ese evento (`/<evento>/operador`).
+
 ### Claves
 El panel del operador y el simulador piden clave. Las páginas del público no.
 - **Clave general:** entra a todos los eventos. Se lee de **`clave-admin.txt`** en la raíz del proyecto (archivo local que **no se sube a git**) o de la variable `CLAVE_ADMIN`.

@@ -2,18 +2,26 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md)
 // Sesión del administrador (panel del operador y simulador) para el evento de la página actual.
 // La clave solo se envía a /api/login; después se usa el token de sesión que entrega el servidor.
-// Sirve la clave general (todos los eventos) o la clave propia del evento (solo ese).
+// Sirve la clave general (todos los eventos) o la clave propia del evento (solo ese). La sesión de la clave
+// general se guarda una sola vez y sirve en todos los eventos: cambiar de evento no vuelve a pedir la clave.
 (function () {
   'use strict';
   const tramo = location.pathname.split('/').filter(Boolean)[0] || '';
   const EVENTO = /^[a-z0-9][a-z0-9-]{1,60}$/.test(tramo) ? tramo : '';
   const CLAVE = 'pc-sesion:' + EVENTO;
+  const CLAVE_GENERAL = 'pc-sesion:*';
+  const leer = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
 
   const Sesion = {
     evento: EVENTO,
-    get() { try { return localStorage.getItem(CLAVE) || ''; } catch (e) { return ''; } },
-    set(token) { try { localStorage.setItem(CLAVE, token); } catch (e) {} },
-    borrar() { try { localStorage.removeItem(CLAVE); } catch (e) {} },
+    get() { return (EVENTO && leer(CLAVE)) || leer(CLAVE_GENERAL); },
+    set(token, alcance) {
+      try {
+        if (alcance === '*') { localStorage.setItem(CLAVE_GENERAL, token); if (EVENTO) localStorage.removeItem(CLAVE); }
+        else localStorage.setItem(CLAVE, token);
+      } catch (e) {}
+    },
+    borrar() { try { localStorage.removeItem(CLAVE); localStorage.removeItem(CLAVE_GENERAL); } catch (e) {} },
 
     // true si la sesión guardada sirve para este evento (o si no se necesita clave), false si no sirve,
     // null si no se pudo consultar (sin red): en ese caso no hay que pedir la clave
@@ -31,7 +39,7 @@
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'No se pudo ingresar');
-      Sesion.set(d.sesion);
+      Sesion.set(d.sesion, d.alcance);
       return d;
     },
 

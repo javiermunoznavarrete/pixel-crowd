@@ -121,12 +121,33 @@ test('el evento entrega sus presets y no expone claves', async () => {
 });
 
 test('las direcciones antiguas redirigen al evento por defecto y los eventos inexistentes a la lista', async () => {
-  const r = await fetch(BASE + '/operador', { redirect: 'manual' });
+  const r = await fetch(BASE + '/simulador', { redirect: 'manual' });
   assert.strictEqual(r.status, 302);
-  assert.strictEqual(r.headers.get('location'), '/prueba-a/operador');
+  assert.strictEqual(r.headers.get('location'), '/prueba-a/simulador');
   const n = await fetch(BASE + '/no-existe', { redirect: 'manual' });
   assert.strictEqual(n.headers.get('location'), '/');
   assert.strictEqual((await fetch(BASE + '/api/e/no-existe/estado')).status, 404);
+});
+
+test('administración: /admin y /operador muestran el selector de eventos; con la clave general se ven también los ocultos', async () => {
+  for (const ruta of ['/admin', '/operador']) {
+    const html = await (await fetch(BASE + ruta, { redirect: 'manual' })).text();
+    assert.ok(html.includes('Elige el evento'), ruta);
+  }
+  const publico = await (await fetch(BASE + '/api/eventos')).json();
+  assert.ok(!publico.some((e) => e.slug === 'prueba-vieja'), 'sin sesión no aparecen los ocultos');
+  const admin = await (await fetch(BASE + '/api/eventos', { headers: { 'x-sesion': SESION } })).json();
+  const oculto = admin.find((e) => e.slug === 'prueba-vieja');
+  assert.ok(oculto && oculto.oculto === true, 'con sesión general aparecen, marcados');
+  // Una sesión de la clave general sirve en cualquier evento, sin volver a ingresar la clave
+  for (const ev of ['prueba-a', 'prueba-b']) {
+    const v = await (await fetch(`${BASE}/api/sesion?evento=${ev}`, { headers: { 'x-sesion': SESION } })).json();
+    assert.strictEqual(v.valida, true, ev);
+  }
+  // La clave de un solo evento no ve los ocultos de la lista
+  const soloB = (await (await login('clave-b', 'prueba-b')).json()).sesion;
+  const conB = await (await fetch(BASE + '/api/eventos', { headers: { 'x-sesion': soloB } })).json();
+  assert.ok(!conB.some((e) => e.slug === 'prueba-vieja'));
 });
 
 test('no sirve archivos fuera de public/', async () => {

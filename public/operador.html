@@ -71,6 +71,9 @@
   }
   .vista iframe { flex: 1; width: 100%; border: 0; min-height: 600px; }
   [hidden] { display: none !important; }
+  .cambiar-evento { display: block; margin: 0 0 12px; }
+  .cambiar-evento select { width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--borde); background: var(--panel); color: var(--texto); font: inherit; font-weight: 600; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
 <body>
@@ -80,7 +83,7 @@
     <h1>Panel del operador</h1>
     <div class="estado"><span class="punto" id="punto"></span><span id="con">Conectando…</span> · <strong id="total">0</strong> teléfonos<span id="debiles"></span> ·
       <a id="enlace-qr" href="#" target="_blank" style="color:inherit">Mostrar QR para el público ↗</a></div>
-    <div class="estado"><span id="titulo-evento"></span> · <a href="/" style="color:inherit">Otros eventos</a></div>
+    <label class="cambiar-evento"><span class="sr">Evento</span><select id="cambiar-evento" aria-label="Cambiar de evento"></select></label>
 
     <section data-plegable="zonas" data-plegado-movil>
       <h2>Zonas</h2>
@@ -225,7 +228,17 @@
 
   const [recinto, evento] = await Promise.all([Show.cargarRecinto(), Show.cargarEvento()]);
   document.title = `Pixel Crowd · Operador · ${evento.titulo}`;
-  $('titulo-evento').textContent = `${evento.titulo}${evento.lugar ? ' · ' + evento.lugar : ''}`;
+
+  // ---- Cambiar de evento ---- (con la clave general, sin volver a ingresarla)
+  const opcionEvento = (e) => `${e.titulo}${e.lugar ? ' · ' + e.lugar : ''}${e.oculto ? ' (oculto)' : ''}`;
+  $('cambiar-evento').innerHTML = `<option value="${Show.evento}">${opcionEvento(evento)}</option>`;
+  fetch('/api/eventos', { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' }).then((r) => r.json()).then((lista) => {
+    if (!lista.some((e) => e.slug === Show.evento)) lista.unshift({ ...evento, slug: Show.evento });
+    $('cambiar-evento').innerHTML = lista.map((e) => `<option value="${e.slug}"${e.slug === Show.evento ? ' selected' : ''}>${opcionEvento(e)}</option>`).join('')
+      + '<option value="">Todos los eventos…</option>';
+  }).catch(() => {});
+  $('cambiar-evento').onchange = (e) => { location.href = e.target.value ? `/${e.target.value}/operador` : '/admin'; };
+  try { localStorage.setItem('pc-ultimo-evento', Show.evento); } catch (e) {}
 
   // ---- Zonas ----
   const seleccion = new Set(recinto.sectores.map((s) => s.id));
