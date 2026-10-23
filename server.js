@@ -580,7 +580,12 @@ async function iniciarSesion(req, res) {
     return json(res, 429, { error: `Demasiados intentos. Espera ${s < 120 ? s + ' s' : Math.ceil(s / 60) + ' min'}.` });
   }
   const clave = String(datos.clave || '').slice(0, 200);
-  const alcance = coincide(clave, HUELLA_ADMIN) ? '*' : (ev && coincide(clave, ev.huellaClave) ? ev.slug : null);
+  // Sin evento (entrada por /admin) se prueba también la clave de cada evento: cada operador entra con la suya
+  // y llega directo a su show. Se comparan todas, sin cortar antes, para no revelar nada por el tiempo.
+  let alcance = coincide(clave, HUELLA_ADMIN) ? '*' : null;
+  if (!alcance) {
+    for (const e of ev ? [ev] : eventos.values()) if (coincide(clave, e.huellaClave) && !alcance) alcance = e.slug;
+  }
   if (!alcance) {
     i.fallidos++;
     i.ultimo = ahora;
@@ -820,7 +825,10 @@ const servidor = http.createServer((req, res) => {
   if (p === '/api/login' && req.method === 'POST') return iniciarSesion(req, res);
   if (p === '/api/sesion') {
     const ev = eventos.get(url.searchParams.get('evento'));
-    return json(res, 200, { requiereClave: requiereClave(ev), valida: sesionValida(req.headers['x-sesion'], ev) });
+    const valida = sesionValida(req.headers['x-sesion'], ev);
+    const s = sesiones.get(req.headers['x-sesion']);
+    // alcance: '*' (clave general) o el evento de la clave; el panel lo usa para mostrar solo lo que corresponde
+    return json(res, 200, { requiereClave: requiereClave(ev), valida, alcance: valida ? (s ? s.alcance : '*') : null });
   }
   if (p === '/api/logout' && req.method === 'POST') { sesiones.delete(req.headers['x-sesion']); return json(res, 200, { ok: true }); }
   // Emergencia: con la clave general se cierran todas las demás sesiones (si alguien más obtuvo acceso)

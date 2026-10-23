@@ -235,7 +235,11 @@
   // ---- Cambiar de evento ---- (con la clave general, sin volver a ingresarla)
   const opcionEvento = (e) => `${e.titulo}${e.lugar ? ' · ' + e.lugar : ''}${e.oculto ? ' (oculto)' : ''}`;
   $('cambiar-evento').innerHTML = `<option value="${Show.evento}">${opcionEvento(evento)}</option>`;
-  fetch('/api/eventos', { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' }).then((r) => r.json()).then((lista) => {
+  // Con la clave de un solo show (un operador por concierto), el menú muestra solo ese show
+  fetch('/api/sesion?evento=' + encodeURIComponent(Show.evento), { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' })
+    .then((r) => r.json()).then((s) => (s.alcance === '*' ? fetch('/api/eventos', { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' }).then((r) => r.json()) : null))
+    .then((lista) => {
+    if (!lista) { $('cambiar-evento').disabled = true; return; }
     if (!lista.some((e) => e.slug === Show.evento)) lista.unshift({ ...evento, slug: Show.evento });
     $('cambiar-evento').innerHTML = lista.map((e) => `<option value="${e.slug}"${e.slug === Show.evento ? ' selected' : ''}>${opcionEvento(e)}</option>`).join('')
       + '<option value="">Todos los eventos…</option>';

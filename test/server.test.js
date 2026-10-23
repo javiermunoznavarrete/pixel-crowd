@@ -150,6 +150,26 @@ test('administración: /admin y /operador muestran el selector de eventos; con l
   assert.ok(!conB.some((e) => e.slug === 'prueba-vieja'));
 });
 
+test('dos operadores: cada uno entra por /admin con la clave de su show y solo controla ese show', async () => {
+  // Sin indicar evento (como en /admin), la clave del show B entra y queda limitada a B
+  const r = await login('clave-b');
+  assert.strictEqual(r.status, 200);
+  const { sesion, alcance } = await r.json();
+  assert.strictEqual(alcance, 'prueba-b');
+  const enB = await (await fetch(`${BASE}/api/sesion?evento=prueba-b`, { headers: { 'x-sesion': sesion } })).json();
+  assert.deepStrictEqual([enB.valida, enB.alcance], [true, 'prueba-b']);
+  const enA = await (await fetch(`${BASE}/api/sesion?evento=prueba-a`, { headers: { 'x-sesion': sesion } })).json();
+  assert.strictEqual(enA.valida, false);
+  // Puede mandar escenas a su show, no al otro
+  assert.strictEqual((await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido' } }] }, sesion, 'prueba-b')).status, 200);
+  assert.strictEqual((await escena({ asignaciones: [{ zonas: 'todas', capa: { efecto: 'solido' } }] }, sesion, 'prueba-a')).status, 401);
+  // Y no puede expulsar a los demás operadores (solo la clave general)
+  assert.strictEqual((await fetch(BASE + '/api/sesiones/cerrar-otras', { method: 'POST', headers: { 'x-sesion': sesion } })).status, 401);
+  // La clave general sigue sirviendo para los dos
+  const general = await (await fetch(`${BASE}/api/sesion?evento=prueba-a`, { headers: { 'x-sesion': SESION } })).json();
+  assert.deepStrictEqual([general.valida, general.alcance], [true, '*']);
+});
+
 test('no sirve archivos fuera de public/', async () => {
   const r = await fetch(BASE + '/..%2fserver.js');
   assert.notStrictEqual(r.status, 200);
@@ -168,7 +188,7 @@ test('login: clave incorrecta 401, correcta entrega sesión válida; cerrar sesi
   assert.match(sesion, /^[0-9a-f]{48}$/);
   assert.strictEqual(alcance, '*');
   const estado = async () => (await fetch(BASE + '/api/sesion?evento=prueba-a', { headers: { 'x-sesion': sesion } })).json();
-  assert.deepStrictEqual(await estado(), { requiereClave: true, valida: true });
+  assert.deepStrictEqual(await estado(), { requiereClave: true, valida: true, alcance: '*' });
   await fetch(BASE + '/api/logout', { method: 'POST', headers: { 'x-sesion': sesion } });
   assert.strictEqual((await estado()).valida, false);
 });

@@ -18,7 +18,7 @@
     set(token, alcance) {
       try {
         if (alcance === '*') { localStorage.setItem(CLAVE_GENERAL, token); if (EVENTO) localStorage.removeItem(CLAVE); }
-        else localStorage.setItem(CLAVE, token);
+        else localStorage.setItem('pc-sesion:' + (alcance || EVENTO), token); // clave de un evento: se guarda para ese evento
       } catch (e) {}
     },
     borrar() { try { localStorage.removeItem(CLAVE); localStorage.removeItem(CLAVE_GENERAL); } catch (e) {} },

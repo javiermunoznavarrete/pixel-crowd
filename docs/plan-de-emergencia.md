@@ -2,6 +2,20 @@
 
 Qué hacer, en orden, si algo anda mal durante un show. Las claves y secretos **no** están en este repositorio: la clave del administrador está en `clave-admin.txt` (en el PC del operador, fuera de git) y en Railway (`CLAVE_ADMIN`); el secreto de origen solo en Railway (`ORIGEN_SECRETO`) y en Cloudflare.
 
+## Dos shows, dos operadores
+
+La noche del 3 de diciembre hay un operador por concierto. Cada uno recibe **la clave de su show**: solo sirve para ese show (no ve ni controla el otro, ni puede expulsar a nadie).
+
+| Quién | Clave | Dónde está | Qué puede hacer |
+|---|---|---|---|
+| Operador de BABYMETAL | clave del show | `data/eventos/babymetal-2026/clave.txt` y Railway `CLAVE_EVENTO_BABYMETAL_2026` | Solo el panel de BABYMETAL |
+| Operador de ATARASHII GAKKO! | clave del show | `data/eventos/atarashii-gakko-2026/clave.txt` y Railway `CLAVE_EVENTO_ATARASHII_GAKKO_2026` | Solo el panel de ATARASHII GAKKO! |
+| Supervisor (Javier) | clave general | `clave-admin.txt` y Railway `CLAVE_ADMIN` | Los dos shows, y cerrar las sesiones de los demás |
+
+Cada operador entra en **https://pixelcrowd.cl/admin** con su clave y llega directo al panel de su show. Si un operador pierde la conexión o el teléfono, el supervisor puede operar ese show con la clave general desde /admin.
+
+Si se sospecha que la clave de un show se filtró: cámbiala en Railway (`CLAVE_EVENTO_…`). Ojo: cambiar cualquier variable reinicia el servidor y **cierra las sesiones de todos**, así que los dos operadores deben volver a entrar.
+
 ## Antes del show (la tarde del 3 de diciembre)
 
 1. Entra a **https://pixelcrowd.cl/admin** desde el teléfono y el PC del operador **antes** de llegar al recinto. La sesión dura 12 horas, así que no dependes de la señal del recinto para ingresar la clave.

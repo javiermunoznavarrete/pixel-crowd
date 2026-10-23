@@ -42,7 +42,7 @@
   <h1>Administración</h1>
 
   <form id="form-login" autocomplete="on" hidden>
-    <p class="sub">Ingresa la clave general una vez: sirve para todos los eventos.</p>
+    <p class="sub">Ingresa tu clave: con la de un show entras directo a su panel; con la general eliges el evento.</p>
     <input type="text" name="username" value="admin" autocomplete="username" hidden>
     <label for="clave">Clave de administrador</label>
     <input type="password" id="clave" autocomplete="current-password" required>
@@ -106,7 +106,8 @@
     $('entrar').disabled = true;
     try {
       const d = await Sesion.ingresar($('clave').value);
-      if (d.alcance !== '*') throw new Error('Esa clave es de un solo evento: entra desde la dirección de ese evento');
+      // Clave de un show: directo al panel de ese show (la general muestra todos los eventos)
+      if (d.alcance !== '*') { location.href = `/${d.alcance}/operador`; return; }
       await mostrarEventos();
     } catch (err) {
       $('error').textContent = err.message;
