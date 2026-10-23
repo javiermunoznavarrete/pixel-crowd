@@ -53,7 +53,8 @@
   <section id="lista" hidden>
     <p class="sub">Elige el evento que vas a operar.</p>
     <ul class="eventos" id="eventos"></ul>
-    <div class="pie"><a href="/" style="color:inherit">Ver la lista pública</a><button id="salir" type="button">Cerrar sesión</button></div>
+    <div class="pie"><a href="/" style="color:inherit">Ver la lista pública</a><button id="salir" type="button">Cerrar sesión</button><button id="cerrar-otras" type="button">Cerrar las demás sesiones</button></div>
+    <p class="sub" id="msg-sesiones" role="status" style="margin-top:10px"></p>
   </section>
 </main>
 
@@ -84,6 +85,14 @@
   }
 
   $('salir').onclick = async () => { await Sesion.salir(); location.reload(); };
+  // Emergencia: si sospechas que alguien más entró al panel, se expulsan todas las sesiones menos esta
+  $('cerrar-otras').onclick = async () => {
+    const r = await fetch('/api/sesiones/cerrar-otras', { method: 'POST', headers: { 'x-sesion': Sesion.get() } }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    $('msg-sesiones').textContent = r && r.ok
+      ? `Listo: se cerraron ${d.cerradas} ${d.cerradas === 1 ? 'sesión' : 'sesiones'}. Si sospechas que la clave se filtró, cámbiala (ver el plan de emergencia).`
+      : (d.error || 'No se pudo: revisa la conexión.');
+  };
 
   // ¿Hay una sesión general válida? (sin evento, /api/sesion valida la clave general)
   const valida = await fetch('/api/sesion', { headers: { 'x-sesion': Sesion.get() }, cache: 'no-store' })

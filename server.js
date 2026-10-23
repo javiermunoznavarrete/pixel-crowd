@@ -37,12 +37,31 @@ const CLAVE_ADMIN = process.env.CLAVE_ADMIN || process.env.OP_TOKEN || leerArchi
 const huella = (texto) => crypto.createHash('sha256').update(String(texto)).digest();
 const HUELLA_ADMIN = CLAVE_ADMIN ? huella(CLAVE_ADMIN) : null;
 const DURACION_SESION = 12 * 60 * 60 * 1000;
-const MAX_INTENTOS = 5; // intentos fallidos seguidos antes de bloquear esa IP un minuto
+const MAX_INTENTOS = 5; // intentos fallidos seguidos antes de bloquear esa IP
+const BLOQUEO_MIN = [1, 5, 15, 60]; // minutos de bloqueo: cada ronda de fallos de la misma IP bloquea más tiempo
 const sesiones = new Map(); // token → { vence, alcance: '*' | slug }
-const intentos = new Map(); // ip → { fallidos, bloqueadoHasta }
+const intentos = new Map(); // ip → { fallidos, rondas, bloqueadoHasta, ultimo }
 
 // Comparación en tiempo constante (sobre huellas del mismo largo) para no filtrar la clave por tiempos
 const coincide = (clave, h) => !!h && crypto.timingSafeEqual(huella(clave), h);
+
+// ---------- Origen e IP real ----------
+// En producción todo el tráfico entra por Cloudflare, que agrega a cada pedido la cabecera x-pixel-origen con
+// ORIGEN_SECRETO (regla de transformación en Cloudflare). Sin ella el servidor responde 403: nadie se salta
+// la protección de Cloudflare entrando por la dirección de Railway, y la IP del visitante que informa
+// Cloudflare (cf-connecting-ip) es confiable. Sin ORIGEN_SECRETO (pruebas locales) se acepta todo.
+const ORIGEN_SECRETO = process.env.ORIGEN_SECRETO || '';
+const HUELLA_ORIGEN = ORIGEN_SECRETO ? huella(ORIGEN_SECRETO) : null;
+const origenValido = (req) => !HUELLA_ORIGEN || coincide(String(req.headers['x-pixel-origen'] || ''), HUELLA_ORIGEN);
+
+// IP del visitante. Detrás de proxies, la IP de la conexión es la del proxy (la misma para todos): con ella,
+// un intruso que fallara la clave bloquearía el ingreso de todos. Solo se confía en cf-connecting-ip cuando
+// el origen está verificado; si no, cualquiera podría inventarla.
+function ipDe(req) {
+  if (HUELLA_ORIGEN && req.headers['cf-connecting-ip']) return String(req.headers['cf-connecting-ip']).slice(0, 64);
+  return req.socket.remoteAddress || '';
+}
+const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const requiereClave = (ev) => !!(HUELLA_ADMIN || (ev && ev.huellaClave));
 
@@ -186,9 +205,16 @@ function ubicacionDe(ev, params) {
 // ---------- Clientes ----------
 // Por conexión abierta (SSE), o por consultas periódicas a /estado para los teléfonos cuya red no
 // sostiene la conexión: esos se recuerdan unos segundos después de cada consulta.
-const clientes = new Set(); // { res, ev, rol, zona, ubicacion }
+const clientes = new Set(); // { res, ev, rol, zona, ubicacion, ip }
+// Topes contra quien abra miles de conexiones falsas para saturar el servidor. Son generosos por IP porque en
+// un recinto cientos de teléfonos salen a internet por la misma IP de la compañía (CGNAT).
+const MAX_CONEXIONES = Number(process.env.MAX_CONEXIONES) || 40000;
+const MAX_CONEXIONES_POR_IP = Number(process.env.MAX_CONEXIONES_POR_IP) || 400;
+const MAX_CONSULTANTES = 60000;
+const conexionesPorIp = new Map(); // ip → conexiones abiertas (SSE) + teléfonos registrados por consultas
+const sumarIp = (ip, n) => { const v = (conexionesPorIp.get(ip) || 0) + n; if (v > 0) conexionesPorIp.set(ip, v); else conexionesPorIp.delete(ip); };
 const CONSULTA_MS = Number(process.env.CONSULTA_MS) || 3000;
-const consultantes = new Map(); // disp → { ev, rol: 'publico', zona, ubicacion, vence }
+const consultantes = new Map(); // disp → { ev, rol: 'publico', zona, ubicacion, vence, ip }
 
 // Todos los teléfonos del público de un evento, por cualquiera de las dos vías
 function* publicoDe(ev) {
@@ -254,7 +280,8 @@ const OBSERVADORES = new Set(['operador', 'simulador']);
 let vuelta = 0;
 setInterval(() => {
   const t = Date.now();
-  for (const [disp, c] of consultantes) if (c.vence < t) consultantes.delete(disp);
+  for (const [disp, c] of consultantes) if (c.vence < t) { consultantes.delete(disp); sumarIp(c.ip, -1); }
+  for (const [ip, i] of intentos) if (i.bloqueadoHasta < t && t - i.ultimo > 24 * 60 * 60 * 1000) intentos.delete(ip);
   const pingPublico = ++vuelta % 8 === 0;
   for (const ev of eventos.values()) {
     podarColas(ev, t);
@@ -279,7 +306,13 @@ setInterval(() => {
 function responderEstado(ev, req, res, url) {
   const disp = url.searchParams.get('disp');
   if (disp && /^[0-9a-z-]{8,64}$/i.test(disp)) {
-    consultantes.set(disp, { ev, rol: 'publico', zona: url.searchParams.get('zona'), ubicacion: ubicacionDe(ev, url.searchParams), vence: Date.now() + CONSULTA_MS * 3 });
+    const ip = ipDe(req);
+    const previo = consultantes.get(disp);
+    // Un teléfono nuevo solo se cuenta si su IP no superó el tope (el estado se le responde igual)
+    if (previo || (consultantes.size < MAX_CONSULTANTES && (conexionesPorIp.get(ip) || 0) < MAX_CONEXIONES_POR_IP)) {
+      if (!previo) sumarIp(ip, 1);
+      consultantes.set(disp, { ev, rol: 'publico', zona: url.searchParams.get('zona'), ubicacion: ubicacionDe(ev, url.searchParams), vence: Date.now() + CONSULTA_MS * 3, ip: previo ? previo.ip : ip });
+    }
   }
   const etag = `"${ev.slug}-${ev.estado.version}"`;
   const cabeceras = {
@@ -407,7 +440,7 @@ function aportesDe(recinto) {
 
 // POST /api/e/<evento>/aporte { zona, profundidad, lado, fila?, silla, dispositivo }
 async function recibirAporte(ev, req, res) {
-  const ip = req.socket.remoteAddress;
+  const ip = ipDe(req);
   const ahora = Date.now();
   const marcas = (enviosPorIp.get(ip) || []).filter((t) => ahora - t < LIMITE_APORTES.ventanaMs);
   if (marcas.length >= LIMITE_APORTES.cantidad) return json(res, 429, { error: 'Demasiados envíos, intenta más tarde' });
@@ -539,17 +572,25 @@ async function iniciarSesion(req, res) {
   const ev = datos.evento ? eventos.get(datos.evento) : null;
   if (!requiereClave(ev)) return json(res, 200, { sesion: 'abierta', abierto: true, alcance: '*' });
 
-  const ip = req.socket.remoteAddress;
-  const i = intentos.get(ip) || { fallidos: 0, bloqueadoHasta: 0 };
-  if (i.bloqueadoHasta > Date.now()) {
-    return json(res, 429, { error: `Demasiados intentos. Espera ${Math.ceil((i.bloqueadoHasta - Date.now()) / 1000)} s.` });
+  const ip = ipDe(req);
+  const ahora = Date.now();
+  const i = intentos.get(ip) || { fallidos: 0, rondas: 0, bloqueadoHasta: 0, ultimo: 0 };
+  if (i.bloqueadoHasta > ahora) {
+    const s = Math.ceil((i.bloqueadoHasta - ahora) / 1000);
+    return json(res, 429, { error: `Demasiados intentos. Espera ${s < 120 ? s + ' s' : Math.ceil(s / 60) + ' min'}.` });
   }
-  const clave = String(datos.clave || '');
+  const clave = String(datos.clave || '').slice(0, 200);
   const alcance = coincide(clave, HUELLA_ADMIN) ? '*' : (ev && coincide(clave, ev.huellaClave) ? ev.slug : null);
   if (!alcance) {
     i.fallidos++;
-    if (i.fallidos >= MAX_INTENTOS) { i.fallidos = 0; i.bloqueadoHasta = Date.now() + 60 * 1000; }
+    i.ultimo = ahora;
+    if (i.fallidos >= MAX_INTENTOS) {
+      const minutos = BLOQUEO_MIN[Math.min(i.rondas, BLOQUEO_MIN.length - 1)];
+      i.fallidos = 0; i.rondas++; i.bloqueadoHasta = ahora + minutos * 60 * 1000;
+      console.warn(`  Seguridad: IP ${ip} bloqueada ${minutos} min por claves incorrectas (ronda ${i.rondas})`);
+    }
     intentos.set(ip, i);
+    await pausa(400 + Math.random() * 300); // cada intento fallido cuesta tiempo: la fuerza bruta se vuelve lentísima
     return json(res, 401, { error: 'Clave incorrecta' });
   }
   intentos.delete(ip);
@@ -635,6 +676,11 @@ function suscribir(ev, req, res, url) {
   if (OBSERVADORES.has(rol) && !sesionValida(url.searchParams.get('sesion'), ev)) {
     return json(res, 401, { error: 'Sesión inválida o vencida' });
   }
+  const ip = ipDe(req);
+  if (clientes.size >= MAX_CONEXIONES || (conexionesPorIp.get(ip) || 0) >= MAX_CONEXIONES_POR_IP) {
+    // El teléfono reintentará y, si sigue sin poder, pasa solo a consultas periódicas
+    return json(res, 429, { error: 'Demasiadas conexiones' });
+  }
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-store',
@@ -642,7 +688,8 @@ function suscribir(ev, req, res, url) {
     'X-Accel-Buffering': 'no',
   });
   res.write('retry: 2000\n\n');
-  const cliente = { res, ev, rol, zona: url.searchParams.get('zona') };
+  const cliente = { res, ev, rol, zona: url.searchParams.get('zona'), ip, sesion: OBSERVADORES.has(rol) ? url.searchParams.get('sesion') : null };
+  sumarIp(ip, 1);
   if (rol === 'publico') cliente.ubicacion = ubicacionDe(ev, url.searchParams);
   clientes.add(cliente);
   res.write(`event: estado
@@ -651,7 +698,7 @@ data: ${estadoJson(ev)}
 `);
   if (rol === 'operador') enviar(res, 'stats', stats(ev));
   if (OBSERVADORES.has(rol)) enviar(res, 'ocupacion', ocupacion(ev));
-  req.on('close', () => clientes.delete(cliente));
+  req.on('close', () => { if (clientes.delete(cliente)) sumarIp(ip, -1); });
 }
 
 // /api/e/<evento>/<accion>
@@ -679,7 +726,32 @@ const GA4_ID = /^G-[A-Z0-9]+$/.test(process.env.GA4_ID || '') ? process.env.GA4_
 
 // Archivos de public/: se leen y comprimen una vez (se rehacen si el archivo cambia). Van con "no-cache" +
 // ETag: el navegador y el service worker siempre preguntan, pero si no cambió la respuesta es un 304 vacío.
-const cacheEstaticos = new Map(); // archivo → { mtimeMs, cuerpo, gz, etag }
+const cacheEstaticos = new Map(); // archivo → { mtimeMs, cuerpo, gz, etag, csp }
+
+// Política de contenido de cada página: solo se ejecutan los scripts de la app (y los de Google Analytics);
+// los scripts escritos dentro del HTML se autorizan por su huella exacta, así que un script inyectado por un
+// intruso no correría. Estilos en línea sí (no ejecutan código). Fuentes de Google y video de NoSleep (data:).
+function politicaContenido(html) {
+  const huellas = [...String(html).matchAll(/<script>([\s\S]*?)<\/script>/g)]
+    // el navegador calcula la huella después de normalizar los saltos de línea de Windows (CR LF) a LF
+    .map((m) => `'sha256-${crypto.createHash('sha256').update(m[1].replace(/\r\n?/g, '\n')).digest('base64')}'`);
+  const google = 'https://*.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com';
+  return [
+    "default-src 'self'",
+    `script-src 'self' ${huellas.join(' ')} https://*.googletagmanager.com`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    `img-src 'self' data: ${google}`,
+    `connect-src 'self' ${google}`,
+    "media-src 'self' data: blob:",
+    "worker-src 'self'",
+    "frame-src 'self'",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+}
 
 function estatico(req, res, archivo) {
   const ruta = path.join(PUBLIC, archivo);
@@ -691,16 +763,47 @@ function estatico(req, res, archivo) {
       let cuerpo = fs.readFileSync(ruta);
       if (archivo === 'analitica.js') cuerpo = Buffer.from(String(cuerpo).replace('__GA4_ID__', GA4_ID));
       const tipo = TIPOS[path.extname(ruta)] || 'application/octet-stream';
-      e = { mtimeMs: info.mtimeMs, cuerpo, tipo, etag: etiqueta(cuerpo), gz: COMPRIMIBLE.test(tipo) && cuerpo.length > 1400 ? zlib.gzipSync(cuerpo) : null };
+      e = { mtimeMs: info.mtimeMs, cuerpo, tipo, etag: etiqueta(cuerpo), gz: COMPRIMIBLE.test(tipo) && cuerpo.length > 1400 ? zlib.gzipSync(cuerpo) : null,
+        csp: tipo.startsWith('text/html') ? politicaContenido(cuerpo) : null };
       cacheEstaticos.set(ruta, e);
     }
     const cabeceras = { 'Content-Type': e.tipo, 'Cache-Control': 'no-cache', ETag: e.etag };
+    if (e.csp) cabeceras['Content-Security-Policy'] = e.csp;
     if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, cabeceras); return res.end(); }
     responder(req, res, 200, cabeceras, e.cuerpo, e.gz);
   });
 }
 
+// Tope de pedidos por IP cada 10 s contra inundaciones desde una sola máquina. Alto a propósito: 400 teléfonos
+// detrás de la misma IP, consultando cada 3 s, hacen ~1.400 pedidos en 10 s.
+const MAX_PEDIDOS_IP_10S = Number(process.env.MAX_PEDIDOS_IP_10S) || 4000;
+const pedidosPorIp = new Map(); // ip → { desde, n }
+setInterval(() => pedidosPorIp.clear(), 10000);
+
+// Cabeceras de seguridad para todo: el navegador no reinterpreta tipos de archivo, no se envía la dirección
+// completa a otros sitios y ninguna página se puede incrustar en un sitio ajeno (el panel, por ejemplo).
+const CABECERAS_SEGURIDAD = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+};
+
 const servidor = http.createServer((req, res) => {
+  for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
+  if (!origenValido(req)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Pixel Crowd: entra por https://pixelcrowd.cl');
+  }
+  const ip = ipDe(req);
+  const cuenta = pedidosPorIp.get(ip) || { n: 0 };
+  cuenta.n++;
+  pedidosPorIp.set(ip, cuenta);
+  if (cuenta.n > MAX_PEDIDOS_IP_10S) {
+    if (cuenta.n === MAX_PEDIDOS_IP_10S + 1) console.warn(`  Seguridad: IP ${ip} superó ${MAX_PEDIDOS_IP_10S} pedidos en 10 s`);
+    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '10' });
+    return res.end('Demasiados pedidos');
+  }
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
   const partes = p.split('/').filter(Boolean);
@@ -720,6 +823,18 @@ const servidor = http.createServer((req, res) => {
     return json(res, 200, { requiereClave: requiereClave(ev), valida: sesionValida(req.headers['x-sesion'], ev) });
   }
   if (p === '/api/logout' && req.method === 'POST') { sesiones.delete(req.headers['x-sesion']); return json(res, 200, { ok: true }); }
+  // Emergencia: con la clave general se cierran todas las demás sesiones (si alguien más obtuvo acceso)
+  if (p === '/api/sesiones/cerrar-otras' && req.method === 'POST') {
+    const propia = req.headers['x-sesion'];
+    const s = propia && sesiones.get(propia);
+    if (!HUELLA_ADMIN || !s || s.alcance !== '*' || s.vence < Date.now()) return json(res, 401, { error: 'Requiere la sesión de la clave general' });
+    let cerradas = 0;
+    for (const token of [...sesiones.keys()]) if (token !== propia) { sesiones.delete(token); cerradas++; }
+    // Los paneles y simuladores abiertos con esas sesiones se desconectan de inmediato
+    for (const c of clientes) if (OBSERVADORES.has(c.rol) && c.sesion !== propia) c.res.end();
+    console.warn(`  Seguridad: se cerraron ${cerradas} sesiones de administrador`);
+    return json(res, 200, { ok: true, cerradas });
+  }
 
   // API de un evento
   if (partes[0] === 'api' && partes[1] === 'e') {
