@@ -170,6 +170,53 @@ test('dos operadores: cada uno entra por /admin con la clave de su show y solo c
   assert.deepStrictEqual([general.valida, general.alcance], [true, '*']);
 });
 
+test('SEO: cada show sale con su título, descripción, canonical, Open Graph y datos estructurados en el HTML', async () => {
+  const r = await fetch(BASE + '/prueba-a');
+  const html = await r.text();
+  const titulo = /<title>([^<]*)<\/title>/.exec(html)[1];
+  assert.ok(titulo.includes('Pixel Crowd') && !/^Pixel Crowd$/.test(titulo), titulo);
+  assert.ok(html.includes('<link rel="canonical" href="https://ejemplo.cl/prueba-a">'));
+  assert.ok(/<meta property="og:image" content="https:\/\/ejemplo\.cl\/og\/[a-z0-9-]+\.png">/.test(html));
+  assert.ok(html.includes('name="twitter:card" content="summary_large_image"'));
+  assert.ok(html.includes('rel="manifest"') && html.includes('rel="icon"'));
+  const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
+  assert.ok(ld['@graph'].some((n) => n['@type'] === 'WebPage') && ld['@graph'].some((n) => n['@type'] === 'WebApplication'));
+  assert.ok(!html.includes('noindex'));
+  assert.strictEqual(r.headers.get('x-robots-tag'), null);
+});
+
+test('SEO: la portada trae los enlaces a los shows en el HTML (sin JavaScript) y el sitemap solo los visibles', async () => {
+  const html = await (await fetch(BASE + '/')).text();
+  assert.ok(html.includes('href="/prueba-a"') && html.includes('href="/prueba-b"'));
+  assert.ok(!html.includes('href="/prueba-vieja"'), 'los ocultos no se enlazan');
+  assert.ok(html.includes('Preguntas frecuentes'));
+  const xml = await (await fetch(BASE + '/sitemap.xml')).text();
+  assert.ok(xml.includes('<loc>https://ejemplo.cl/</loc>') && xml.includes('<loc>https://ejemplo.cl/prueba-a</loc>'));
+  assert.ok(!xml.includes('prueba-vieja'));
+});
+
+test('SEO: paneles, admin, API y shows ocultos no se indexan', async () => {
+  for (const ruta of ['/admin', '/prueba-a/operador', '/prueba-a/simulador', '/prueba-a/conectar', '/prueba-vieja']) {
+    const r = await fetch(BASE + ruta);
+    assert.ok((r.headers.get('x-robots-tag') || '').includes('noindex'), ruta);
+    assert.ok((await r.text()).includes('noindex'), ruta);
+  }
+  assert.ok((await fetch(BASE + '/api/eventos')).headers.get('x-robots-tag').includes('noindex'));
+});
+
+test('SEO: robots.txt, llms.txt, manifest e íconos', async () => {
+  const tipos = { '/robots.txt': 'text/plain', '/llms.txt': 'text/plain', '/manifest.webmanifest': 'application/manifest+json',
+    '/favicon.ico': 'image/x-icon', '/favicon.svg': 'image/svg+xml', '/apple-touch-icon.png': 'image/png', '/og/pixel-crowd.png': 'image/png' };
+  for (const [ruta, tipo] of Object.entries(tipos)) {
+    const r = await fetch(BASE + ruta);
+    assert.strictEqual(r.status, 200, ruta);
+    assert.ok(r.headers.get('content-type').startsWith(tipo), ruta);
+  }
+  assert.ok((await (await fetch(BASE + '/robots.txt')).text()).includes('Sitemap: https://pixelcrowd.cl/sitemap.xml'));
+  const manifest = await (await fetch(BASE + '/manifest.webmanifest')).json();
+  assert.strictEqual(manifest.name, 'Pixel Crowd');
+});
+
 test('no sirve archivos fuera de public/', async () => {
   const r = await fetch(BASE + '/..%2fserver.js');
   assert.notStrictEqual(r.status, 200);

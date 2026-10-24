@@ -62,6 +62,14 @@ Librerías incluidas en `public/vendor/` (se sirven desde el PC, funcionan sin i
 npm test             # tests del motor de efectos y del servidor
 ```
 
+## SEO y buscadores con IA
+
+- **Metadatos desde el servidor:** cada página pública sale con su título, descripción, canonical, Open Graph, tarjeta de X y datos estructurados JSON-LD (`WebSite`, `WebApplication` y, en cada show, `WebPage`). Se escriben en el marcador `<!--seo-->` de cada plantilla, así que los buscadores y las vistas previas de WhatsApp los ven sin ejecutar JavaScript. Los shows no se marcan como `Event`: Pixel Crowd es una acción de fans, no el concierto.
+- **Portada:** la lista de shows y una sección de preguntas frecuentes vienen escritas en el HTML.
+- **No se indexan** el panel, el simulador, el QR, `/admin`, la API ni los shows ocultos (`noindex` en el HTML y en `X-Robots-Tag`).
+- **Archivos:** `/sitemap.xml` (se arma con los shows visibles), `/robots.txt` (permite búsqueda y respuestas de IA, no entrenamiento), `/llms.txt`, `/manifest.webmanifest` e íconos.
+- **Imágenes para compartir** (1200×630) en `public/og/`: `pixel-crowd.png` y una por show. Para un show nuevo, captura `tools/imagen-og.html?show=…&lugar=…&fecha=…` a 1200×630 con Chrome o Edge sin ventana y guárdala como `public/og/<evento>.png`.
+
 ## Seguridad
 
 En producción todo el tráfico entra por **Cloudflare**, que agrega a cada pedido una cabecera secreta (`x-pixel-origen`). Con `ORIGEN_SECRETO` definido, el servidor rechaza con 403 lo que no la trae, así que nadie se salta Cloudflare entrando por la dirección de Railway, y la IP real del visitante (`cf-connecting-ip`) es confiable.

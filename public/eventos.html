@@ -1,12 +1,11 @@
 <!doctype html>
 <!-- Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete · SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md) -->
-<html lang="es">
+<html lang="es-CL">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#15122A">
-<meta name="description" content="Pixel Crowd: tu teléfono es un píxel del show. Sin app, desde el navegador.">
-<title>Pixel Crowd</title>
+<!--seo-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
@@ -44,6 +43,8 @@
   .anteriores .ir { background: none; color: var(--lila); padding: 0; }
   .vacio { color: var(--lila); }
 
+  .preguntas h3 { font-size: 17px; margin: 20px 0 4px; }
+  .preguntas p { margin: 0; color: var(--lila); }
   .pie { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--borde); color: var(--lila); font-size: 14px; }
   .pie p { margin: 0 0 8px; }
 </style>
@@ -57,13 +58,29 @@
   <p class="intro">En cada show, los teléfonos del público se encienden juntos: olas, colores y una bandera que se ve desde el escenario. Sin app ni pulseras, desde el navegador.</p>
 
   <h2>Próximos shows</h2>
-  <ul class="shows" id="proximos"></ul>
+  <ul class="shows" id="proximos"><!--proximos--></ul>
   <p class="vacio" id="sin-proximos" hidden>No hay shows anunciados por ahora. Si vas a uno, entra con el QR que se muestra en el recinto.</p>
 
   <div class="anteriores" id="bloque-anteriores" hidden>
     <h2>Shows anteriores</h2>
-    <ul class="shows" id="anteriores"></ul>
+    <ul class="shows" id="anteriores"><!--anteriores--></ul>
   </div>
+
+  <section class="preguntas" aria-labelledby="titulo-preguntas">
+    <h2 id="titulo-preguntas">Preguntas frecuentes</h2>
+    <h3>¿Qué es Pixel Crowd?</h3>
+    <p>Una forma de convertir los teléfonos del público en luces coordinadas. Cada pantalla es un píxel: juntas forman olas, colores y banderas que se ven desde el escenario, como las pulseras LED de los grandes shows, pero sin repartir nada.</p>
+    <h3>¿Tengo que descargar una app?</h3>
+    <p>No. Entras al link del show o escaneas el QR, tocas tu sector en el mapa y eliges tu asiento. Funciona en el navegador del teléfono, con datos móviles y sin registrarte. Si abres el link una vez antes del show, queda guardado y abre aunque la señal del recinto esté saturada.</p>
+    <h3>¿Cómo cambian todos de color al mismo tiempo?</h3>
+    <p>Cada teléfono sincroniza su reloj con el servidor y sabe dónde está por el asiento que elegiste. Cuando el operador lanza un efecto, cada pantalla calcula su propio color, así todo el recinto forma una sola imagen. Si se corta la señal, el efecto sigue.</p>
+    <h3>¿Es oficial de la banda?</h3>
+    <p>No. Pixel Crowd es una acción de fans: no está asociada a las bandas, a los recintos, a la productora ni a la ticketera.</p>
+    <h3>¿Gasta mucha batería o datos?</h3>
+    <p>Usa muy pocos datos. Lo que más gasta es la pantalla con el brillo al máximo, así que llega con la batería cargada.</p>
+    <h3>¿Es seguro si soy sensible a las luces?</h3>
+    <p>Los destellos nunca superan 3 por segundo. Aun así, si eres sensible a las luces intermitentes, mejor no lo uses o evita los momentos de destellos.</p>
+  </section>
 
   <footer class="pie">
     <p>Pixel Crowd es un proyecto de Javier Julian Muñoz Navarrete, de uso no comercial. <a href="https://github.com/javiermunoznavarrete/pixel-crowd" target="_blank" rel="noopener">Ver el código</a>.</p>
@@ -96,6 +113,9 @@
     const lista = await (await fetch('/api/eventos', { cache: 'no-store' })).json();
     const proximos = lista.filter((e) => e.situacion !== 'terminado');
     const anteriores = lista.filter((e) => e.situacion === 'terminado').reverse();
+    // La lista viene escrita desde el servidor (para buscadores y sin red); aquí se reemplaza por la de ahora
+    $('proximos').textContent = '';
+    $('anteriores').textContent = '';
     proximos.forEach((e) => $('proximos').appendChild(fila(e)));
     anteriores.forEach((e) => $('anteriores').appendChild(fila(e)));
     $('sin-proximos').hidden = proximos.length > 0;

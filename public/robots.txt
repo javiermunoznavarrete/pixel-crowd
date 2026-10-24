@@ -1,0 +1,10 @@
+# Pixel Crowd — https://pixelcrowd.cl
+# Las páginas privadas (panel, simulador, QR, admin) y la API llevan "noindex": no se bloquean aquí para que
+# los buscadores puedan leer esa instrucción.
+# Uso del contenido: buscadores y respuestas de IA, sí; entrenamiento de modelos, no.
+
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
+Allow: /
+
+Sitemap: https://pixelcrowd.cl/sitemap.xml

@@ -1,0 +1,27 @@
+# Pixel Crowd
+
+> Pixel Crowd convierte los teléfonos del público de un concierto en luces coordinadas: cada pantalla es un píxel y, juntas, forman olas, colores, textos y banderas que se ven desde el escenario. Funciona en el navegador del teléfono, sin instalar una app, sin registro y sin pulseras LED. Es una acción de fans, no oficial, creada en Santiago de Chile por Javier Julian Muñoz Navarrete.
+
+## Cómo funciona
+
+- La persona abre el link o escanea el QR del show, toca su sector en el mapa del recinto (platea, tribuna o cancha) y elige su fila y asiento; en zonas sin numerar, toca la parte donde está.
+- Un operador elige el efecto de cada momento (color, ola, pulso al ritmo de la canción, bandera de Chile o de Japón, tela al viento). Cada teléfono calcula su propio color según su ubicación y la hora sincronizada con el servidor, así todos cambian a la vez y forman una sola imagen.
+- Si la señal se cae, el efecto en curso sigue corriendo. La página queda guardada en el teléfono después de abrirla una vez.
+- Los destellos nunca superan 3 por segundo (seguridad para personas fotosensibles). No pide nombre, correo ni número de teléfono.
+
+## Diferencia con las pulseras LED
+
+Las pulseras o lightsticks de los grandes shows requieren repartir hardware y montar antenas en el recinto, y los contrata la producción. Pixel Crowd usa solo el teléfono que el público ya tiene, funciona con datos móviles y lo pueden organizar los propios fans.
+
+## Próximos shows (jueves 3 de diciembre de 2026, Santiago de Chile)
+
+- [BABYMETAL en el Movistar Arena](https://pixelcrowd.cl/babymetal-2026): acción de fans con efectos por canción y la bandera de Chile formada por todo el público.
+- [ATARASHII GAKKO! en el Teatro Caupolicán](https://pixelcrowd.cl/atarashii-gakko-2026): primer show del grupo en Chile; efectos por canción y las banderas de Chile y Japón.
+
+Pixel Crowd no está asociado a las bandas, a los recintos, a la productora ni a la ticketera.
+
+## Enlaces
+
+- [Lista de shows](https://pixelcrowd.cl/)
+- [Código fuente (licencia PolyForm Noncommercial)](https://github.com/javiermunoznavarrete/pixel-crowd)
+- Contacto para licencias comerciales o contratar el servicio: javier_munoz_navarrete@hotmail.com

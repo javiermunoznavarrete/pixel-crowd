@@ -111,7 +111,7 @@ function cargarRecinto(nombre) {
 // ---------- Eventos ----------
 const SLUG = /^[a-z0-9][a-z0-9-]{1,60}$/;
 const PAGINAS = { operador: 'operador.html', simulador: 'simulador.html', conectar: 'conectar.html' };
-const RESERVADOS = new Set(['api', 'vendor', 'admin', ...Object.keys(PAGINAS)]);
+const RESERVADOS = new Set(['api', 'vendor', 'admin', 'og', ...Object.keys(PAGINAS)]);
 const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: ZONA_HORARIA }); // AAAA-MM-DD en Chile
 
 function cargarEventos() {
@@ -498,7 +498,11 @@ function verAportes(ev, req, res, url) {
 }
 
 // ---------- HTTP ----------
-const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TIPOS = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json',
+  '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8',
+};
 
 // IPs de la red local, con WiFi/Ethernet primero. Se descartan adaptadores virtuales y VPN,
 // que los teléfonos de la misma WiFi no pueden alcanzar.
@@ -758,22 +762,115 @@ function politicaContenido(html) {
   ].join('; ');
 }
 
-function estatico(req, res, archivo) {
+// ---------- SEO ----------
+// Los buscadores y las vistas previas de WhatsApp, Instagram, etc. leen el HTML sin ejecutar JavaScript: por eso
+// el título, la descripción, Open Graph y los datos estructurados de cada página se escriben aquí, en el
+// marcador <!--seo--> de cada plantilla. Las páginas privadas (panel, simulador, QR, admin) llevan noindex.
+const BASE_PUBLICA = (process.env.URL_PUBLICO || 'https://pixelcrowd.cl/').replace(/\/?$/, '/');
+const PRIVADAS = new Set(['operador.html', 'simulador.html', 'conectar.html', 'admin.html']);
+const AUTOR = 'Javier Julian Muñoz Navarrete';
+const escaparHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const indexable = (ev) => !ev.def.oculto;
+const eventosVisibles = () => [...eventos.values()].filter(indexable)
+  .sort((a, b) => String(a.def.fechaISO).localeCompare(String(b.def.fechaISO)) || a.def.titulo.localeCompare(b.def.titulo));
+
+function metadatos(archivo, ev) {
+  if (PRIVADAS.has(archivo)) return '<meta name="robots" content="noindex, nofollow">';
+  const app = { '@type': 'WebApplication', '@id': BASE_PUBLICA + '#app', name: 'Pixel Crowd', url: BASE_PUBLICA,
+    applicationCategory: 'EntertainmentApplication', operatingSystem: 'Web (navegador del teléfono)', inLanguage: 'es-CL',
+    description: 'Convierte los teléfonos del público en luces coordinadas: cada pantalla es un píxel y juntas forman olas, colores y banderas que se ven desde el escenario. Sin app ni pulseras.',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'CLP' }, creator: { '@id': BASE_PUBLICA + '#autor' } };
+  const autor = { '@type': 'Person', '@id': BASE_PUBLICA + '#autor', name: AUTOR, email: 'mailto:javier_munoz_navarrete@hotmail.com' };
+  const sitio = { '@type': 'WebSite', '@id': BASE_PUBLICA + '#sitio', name: 'Pixel Crowd', url: BASE_PUBLICA, inLanguage: 'es-CL', publisher: { '@id': BASE_PUBLICA + '#autor' } };
+  let titulo, descripcion, url, imagen, grafo;
+  if (ev) {
+    const d = ev.def;
+    url = BASE_PUBLICA + ev.slug;
+    titulo = `${d.titulo}${d.lugar ? ' en el ' + d.lugar : ''}: enciende tu teléfono | Pixel Crowd`;
+    descripcion = `Acción de fans para ${d.titulo}${d.fecha ? ', ' + d.fecha : ''}${d.lugar ? ' en el ' + d.lugar : ''}: elige tu sector y tu teléfono se suma a las luces del público, junto a miles de pantallas. Sin app ni pulseras.`;
+    imagen = fs.existsSync(path.join(PUBLIC, 'og', ev.slug + '.png')) ? `og/${ev.slug}.png` : 'og/pixel-crowd.png';
+    grafo = [sitio, app, autor, { '@type': 'WebPage', '@id': url, url, name: titulo, description: descripcion, inLanguage: 'es-CL',
+      isPartOf: { '@id': BASE_PUBLICA + '#sitio' }, about: { '@id': BASE_PUBLICA + '#app' },
+      ...(d.fechaISO ? { mentions: { '@type': 'MusicEvent', name: `${d.titulo} en Santiago`, startDate: d.fechaISO,
+        location: { '@type': 'Place', name: d.lugar, address: { '@type': 'PostalAddress', addressLocality: 'Santiago', addressCountry: 'CL' } },
+        performer: { '@type': 'MusicGroup', name: d.titulo } } } : {}) }];
+  } else {
+    const proximos = eventosVisibles().filter((e) => situacion(e.def) !== 'terminado').map((e) => e.def.titulo);
+    url = BASE_PUBLICA;
+    titulo = 'Pixel Crowd: el público es la pantalla. Luces con tu teléfono en conciertos';
+    descripcion = 'En cada show, los teléfonos del público se encienden juntos y forman olas, colores y una bandera que se ve desde el escenario. Sin app ni pulseras: solo el navegador.'
+      + (proximos.length ? ` Próximos shows: ${proximos.join(' y ')}.` : '');
+    imagen = 'og/pixel-crowd.png';
+    grafo = [sitio, app, autor];
+  }
+  const img = BASE_PUBLICA + imagen;
+  const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': grafo }).replace(/</g, '\\u003c');
+  return [
+    `<title>${escaparHtml(titulo)}</title>`,
+    `<meta name="description" content="${escaparHtml(descripcion)}">`,
+    `<link rel="canonical" href="${url}">`,
+    ...(ev && !indexable(ev) ? ['<meta name="robots" content="noindex">'] : []),
+    '<meta property="og:type" content="website">', '<meta property="og:site_name" content="Pixel Crowd">', '<meta property="og:locale" content="es_CL">',
+    `<meta property="og:title" content="${escaparHtml(titulo)}">`, `<meta property="og:description" content="${escaparHtml(descripcion)}">`,
+    `<meta property="og:url" content="${url}">`, `<meta property="og:image" content="${img}">`,
+    '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
+    `<meta property="og:image:alt" content="${escaparHtml(ev ? `Pixel Crowd en ${ev.def.titulo}: el público es la pantalla` : 'Pixel Crowd: el público es la pantalla')}">`,
+    '<meta name="twitter:card" content="summary_large_image">', `<meta name="twitter:title" content="${escaparHtml(titulo)}">`,
+    `<meta name="twitter:description" content="${escaparHtml(descripcion)}">`, `<meta name="twitter:image" content="${img}">`,
+    `<meta name="author" content="${AUTOR}">`,
+    `<script type="application/ld+json">${ld}</script>`,
+  ].join('\n');
+}
+
+// Íconos y manifest: en todas las páginas (también las privadas, para la pestaña del navegador)
+const ICONOS = ['<link rel="icon" href="/favicon.svg" type="image/svg+xml">', '<link rel="icon" href="/favicon.ico" sizes="32x32">',
+  '<link rel="apple-touch-icon" href="/apple-touch-icon.png">', '<link rel="manifest" href="/manifest.webmanifest">'].join('\n');
+
+// Lista de shows de la portada escrita en el HTML (mismo formato que arma la página): los buscadores ven los
+// enlaces a cada show y, sin red, la lista igual aparece
+function listaEnHtml(html) {
+  const fila = (e) => {
+    const sit = situacion(e.def);
+    const cuando = sit === 'hoy' ? '<strong>Hoy</strong>' : escaparHtml(e.def.fecha || '');
+    return `<li class="show${sit === 'hoy' ? ' hoy' : ''}"><a href="/${e.slug}"><div><div class="titulo">${escaparHtml(e.def.titulo)}</div>`
+      + `<div class="donde">${escaparHtml(e.def.lugar || '')}${cuando ? ', ' + cuando : ''}</div></div><span class="ir">${sit === 'terminado' ? 'Terminó' : sit === 'hoy' ? 'Entrar' : 'Ver'}</span></a></li>`;
+  };
+  const lista = eventosVisibles();
+  return html.replace('<!--proximos-->', lista.filter((e) => situacion(e.def) !== 'terminado').map(fila).join(''))
+    .replace('<!--anteriores-->', lista.filter((e) => situacion(e.def) === 'terminado').reverse().map(fila).join(''));
+}
+
+// GET /sitemap.xml — portada y shows visibles
+function sitemap(req, res) {
+  const fecha = (f) => { try { return fs.statSync(f).mtime.toISOString().slice(0, 10); } catch { return null; } };
+  const urls = [{ loc: BASE_PUBLICA, mod: fecha(path.join(PUBLIC, 'eventos.html')) },
+    ...eventosVisibles().map((e) => ({ loc: BASE_PUBLICA + e.slug, mod: fecha(path.join(DIR_EVENTOS, e.slug, 'evento.json')) }))];
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + urls.map((u) => `  <url><loc>${u.loc}</loc>${u.mod ? `<lastmod>${u.mod}</lastmod>` : ''}</url>`).join('\n') + '\n</urlset>\n';
+  responder(req, res, 200, { 'Content-Type': TIPOS['.xml'], 'Cache-Control': 'public, max-age=3600' }, xml);
+}
+
+function estatico(req, res, archivo, ev = null) {
   const ruta = path.join(PUBLIC, archivo);
   if (!ruta.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.stat(ruta, (err, info) => {
     if (err || !info.isFile()) { res.writeHead(404); return res.end('No encontrado'); }
-    let e = cacheEstaticos.get(ruta);
+    // La misma plantilla sale distinta para cada show; la portada cambia además con la fecha (próximo → hoy → terminado)
+    const llave = ruta + '|' + (ev ? ev.slug : '') + (archivo === 'eventos.html' ? '|' + hoy() : '');
+    let e = cacheEstaticos.get(llave);
     if (!e || e.mtimeMs !== info.mtimeMs) {
       let cuerpo = fs.readFileSync(ruta);
       if (archivo === 'analitica.js') cuerpo = Buffer.from(String(cuerpo).replace('__GA4_ID__', GA4_ID));
+      if (archivo.endsWith('.html')) cuerpo = Buffer.from(String(cuerpo).replace('<!--seo-->', metadatos(archivo, ev) + '\n' + ICONOS));
+      if (archivo === 'eventos.html') cuerpo = Buffer.from(listaEnHtml(String(cuerpo)));
       const tipo = TIPOS[path.extname(ruta)] || 'application/octet-stream';
       e = { mtimeMs: info.mtimeMs, cuerpo, tipo, etag: etiqueta(cuerpo), gz: COMPRIMIBLE.test(tipo) && cuerpo.length > 1400 ? zlib.gzipSync(cuerpo) : null,
         csp: tipo.startsWith('text/html') ? politicaContenido(cuerpo) : null };
-      cacheEstaticos.set(ruta, e);
+      cacheEstaticos.set(llave, e);
     }
     const cabeceras = { 'Content-Type': e.tipo, 'Cache-Control': 'no-cache', ETag: e.etag };
     if (e.csp) cabeceras['Content-Security-Policy'] = e.csp;
+    if (PRIVADAS.has(archivo) || (ev && !indexable(ev))) cabeceras['X-Robots-Tag'] = 'noindex, nofollow';
     if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, cabeceras); return res.end(); }
     responder(req, res, 200, cabeceras, e.cuerpo, e.gz);
   });
@@ -812,6 +909,7 @@ const servidor = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
   const partes = p.split('/').filter(Boolean);
+  if (p.startsWith('/api/')) res.setHeader('X-Robots-Tag', 'noindex'); // los datos de la API no son páginas
 
   // API general
   if (p === '/api/time') return json(res, 200, { t: Date.now() });
@@ -854,6 +952,7 @@ const servidor = http.createServer((req, res) => {
 
   // Páginas
   if (p === '/') return estatico(req, res, 'eventos.html');
+  if (p === '/sitemap.xml') return sitemap(req, res);
   // Entrada del administrador: se ingresa la clave una vez y se elige el evento (antes llevaba al "por defecto")
   if (p === '/admin' || p === '/operador') return estatico(req, res, 'admin.html');
   // Direcciones de antes de los multieventos: /operador, /simulador, /conectar → al evento por defecto
@@ -861,7 +960,7 @@ const servidor = http.createServer((req, res) => {
   if (partes.length >= 1 && SLUG.test(partes[0]) && !RESERVADOS.has(partes[0])) {
     const ev = eventos.get(partes[0]);
     if (!ev) return redirigir(res, '/');
-    if (partes.length === 1) return estatico(req, res, 'index.html');
+    if (partes.length === 1) return estatico(req, res, 'index.html', ev);
     if (partes.length === 2 && PAGINAS[partes[1]]) return estatico(req, res, PAGINAS[partes[1]]);
     return redirigir(res, `/${ev.slug}`);
   }

@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete · SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md) -->
+<!-- Plantilla de las imágenes para compartir (1200×630). Parámetros: ?show=BABYMETAL&lugar=Movistar%20Arena&fecha=jueves%203%20de%20diciembre
+     Sin parámetros, la de la portada. Se captura con Chrome/Edge sin ventana (ver README, "SEO"). -->
+<html lang="es"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@700;800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #15122A; color: #FFF1E0; font-family: "Atkinson Hyperlegible", sans-serif; }
+  canvas { position: absolute; inset: 0; }
+  .texto { position: absolute; left: 72px; top: 64px; width: 640px; }
+  .marca { display: flex; align-items: center; gap: 14px; font: 800 30px "Unbounded", sans-serif; }
+  .marca svg { width: 34px; height: 34px; }
+  h1 { font: 700 76px/1.02 "Unbounded", sans-serif; letter-spacing: -0.01em; margin: 54px 0 26px; }
+  .show { font-size: 32px; line-height: 1.3; color: #FFF1E0; }
+  .show strong { font-family: "Unbounded", sans-serif; font-weight: 800; color: #FF2E4D; }
+  .pie { position: absolute; left: 72px; bottom: 56px; font-size: 26px; color: #A39DCC; }
+</style></head>
+<body>
+<canvas id="c" width="1200" height="630"></canvas>
+<div class="texto">
+  <div class="marca"><svg viewBox="0 0 11 11"><rect x="0" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="0" width="3" height="3" fill="#FFF1E0"/><rect x="8" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="0" y="4" width="3" height="3" fill="#FFF1E0"/><rect x="4" y="4" width="3" height="3" fill="#FF2E4D"/><rect x="8" y="4" width="3" height="3" fill="#3A3366"/><rect x="0" y="8" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="8" width="3" height="3" fill="#3A3366"/><rect x="8" y="8" width="3" height="3" fill="#FFF1E0"/></svg>pixel crowd</div>
+  <h1>El público es la pantalla.</h1>
+  <div class="show" id="show">Tu teléfono es un píxel del show.</div>
+</div>
+<div class="pie" id="pie">Sin app ni pulseras · pixelcrowd.cl</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get('show')) {
+    document.getElementById('show').innerHTML = '';
+    const s = document.createElement('strong'); s.textContent = q.get('show');
+    document.getElementById('show').append(s, document.createElement('br'), [q.get('lugar'), q.get('fecha')].filter(Boolean).join(', '));
+    document.getElementById('pie').textContent = 'Acción de fans · sin app ni pulseras · pixelcrowd.cl';
+  }
+  // El público visto desde el escenario: una grilla de píxeles con una tela roja que flamea (a la derecha)
+  const g = document.getElementById('c').getContext('2d');
+  const paso = 22, r = 4;
+  for (let y = 40; y < 610; y += paso) for (let x = 760; x < 1180; x += paso) {
+    const onda = Math.sin(x * 0.018 + y * 0.006) * 70 + y * 0.35;
+    const t = (Math.sin((x - 760) * 0.012 + onda * 0.02) + 1) / 2;
+    const fila = (y - 40) / 570;
+    const luz = 0.25 + 0.75 * t * (0.4 + 0.6 * fila);
+    g.fillStyle = `rgb(${Math.round(58 + (255 - 58) * luz)}, ${Math.round(51 + (46 - 51) * luz)}, ${Math.round(102 + (77 - 102) * luz)})`;
+    g.beginPath(); g.roundRect(x, y, paso - 6, paso - 6, r); g.fill();
+  }
+</script>
+</body></html>

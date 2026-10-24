@@ -1,13 +1,12 @@
 <!doctype html>
 <!-- Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete · SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md) -->
-<html lang="es">
+<html lang="es-CL">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#15122A">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="description" content="Pixel Crowd: tu teléfono es un píxel del show. Sin app, desde el navegador.">
-<title>Pixel Crowd</title>
+<!--seo-->
 <script>
   // Con señal lenta, lo primero es el mapa: se pide aquí, antes de que bajen los scripts (show.js lo recibe)
   (function () {
@@ -290,7 +289,6 @@
   }
   const [recinto, evento] = await cargarDatos();
   guardarApp();
-  document.title = `Pixel Crowd · ${evento.titulo}`;
   const CLAVE_UBICACION = 'ubicacion:' + Show.evento; // la ubicación recordada es por evento
 
   // Show ya terminado: se agradece y se ofrecen los demás eventos en vez del mapa
