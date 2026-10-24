@@ -790,10 +790,9 @@ function metadatos(archivo, ev) {
     descripcion = `Acción de fans para ${d.titulo}${d.fecha ? ', ' + d.fecha : ''}${d.lugar ? ' en el ' + d.lugar : ''}: elige tu sector y tu teléfono se suma a las luces del público, junto a miles de pantallas. Sin app ni pulseras.`;
     imagen = fs.existsSync(path.join(PUBLIC, 'og', ev.slug + '.png')) ? `og/${ev.slug}.png` : 'og/pixel-crowd.png';
     grafo = [sitio, app, autor, { '@type': 'WebPage', '@id': url, url, name: titulo, description: descripcion, inLanguage: 'es-CL',
-      isPartOf: { '@id': BASE_PUBLICA + '#sitio' }, about: { '@id': BASE_PUBLICA + '#app' },
-      ...(d.fechaISO ? { mentions: { '@type': 'MusicEvent', name: `${d.titulo} en Santiago`, startDate: d.fechaISO,
-        location: { '@type': 'Place', name: d.lugar, address: { '@type': 'PostalAddress', addressLocality: 'Santiago', addressCountry: 'CL' } },
-        performer: { '@type': 'MusicGroup', name: d.titulo } } } : {}) }];
+      // Sin marcado de evento (MusicEvent): Google lo toma como la página del concierto y lo mostraría como evento
+      // oficial; esta página es la acción de fans, no el concierto
+      isPartOf: { '@id': BASE_PUBLICA + '#sitio' }, about: { '@id': BASE_PUBLICA + '#app' } }];
   } else {
     const proximos = eventosVisibles().filter((e) => situacion(e.def) !== 'terminado').map((e) => e.def.titulo);
     url = BASE_PUBLICA;

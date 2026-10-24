@@ -181,6 +181,8 @@ test('SEO: cada show sale con su título, descripción, canonical, Open Graph y 
   assert.ok(html.includes('rel="manifest"') && html.includes('rel="icon"'));
   const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
   assert.ok(ld['@graph'].some((n) => n['@type'] === 'WebPage') && ld['@graph'].some((n) => n['@type'] === 'WebApplication'));
+  // Sin marcado de evento: Google lo mostraría como la página oficial del concierto
+  assert.ok(!/"@type":"(MusicEvent|Event)"/.test(JSON.stringify(ld)));
   assert.ok(!html.includes('noindex'));
   assert.strictEqual(r.headers.get('x-robots-tag'), null);
 });
