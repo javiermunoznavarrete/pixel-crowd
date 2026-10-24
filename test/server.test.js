@@ -215,6 +215,11 @@ test('SEO: robots.txt, llms.txt, manifest e íconos', async () => {
     assert.ok(r.headers.get('content-type').startsWith(tipo), ruta);
   }
   assert.ok((await (await fetch(BASE + '/robots.txt')).text()).includes('Sitemap: https://pixelcrowd.cl/sitemap.xml'));
+  // Imágenes con un día de caché; HTML y scripts siempre se revalidan
+  for (const ruta of ['/og/pixel-crowd.png', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']) {
+    assert.ok((await fetch(BASE + ruta)).headers.get('cache-control').includes('max-age=86400'), ruta);
+  }
+  for (const ruta of ['/show.js', '/prueba-a']) assert.strictEqual((await fetch(BASE + ruta)).headers.get('cache-control'), 'no-cache', ruta);
   const manifest = await (await fetch(BASE + '/manifest.webmanifest')).json();
   assert.strictEqual(manifest.name, 'Pixel Crowd');
 });

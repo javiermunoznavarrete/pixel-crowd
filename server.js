@@ -867,7 +867,11 @@ function estatico(req, res, archivo, ev = null) {
         csp: tipo.startsWith('text/html') ? politicaContenido(cuerpo) : null };
       cacheEstaticos.set(llave, e);
     }
-    const cabeceras = { 'Content-Type': e.tipo, 'Cache-Control': 'no-cache', ETag: e.etag };
+    // Las imágenes (íconos, favicon, imágenes para compartir) casi nunca cambian: un día de caché en Cloudflare y en
+    // el navegador, sin preguntar al servidor; vencido el día, se usa la guardada mientras se trae la nueva. El
+    // resto (HTML, scripts) se revalida siempre, para que una actualización llegue de inmediato.
+    const imagen = /^image\//.test(e.tipo);
+    const cabeceras = { 'Content-Type': e.tipo, 'Cache-Control': imagen ? 'public, max-age=86400, stale-while-revalidate=604800' : 'no-cache', ETag: e.etag };
     if (e.csp) cabeceras['Content-Security-Policy'] = e.csp;
     if (PRIVADAS.has(archivo) || (ev && !indexable(ev))) cabeceras['X-Robots-Tag'] = 'noindex, nofollow';
     if (req.headers['if-none-match'] === e.etag) { res.writeHead(304, cabeceras); return res.end(); }
