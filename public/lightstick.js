@@ -37,8 +37,25 @@
         { nombre: 'Ver. 1, suma desde el 2.º byte', bytes: (r, g, b) => conSuma([1, 1, 0x0b, 0, 0, r, g, b, 0, 0], 1) },
       ],
     },
+    // Mismo chip y protocolo que ATEEZ (fabricante BEATRO); se reconoce por el nombre que anuncia (WONHO-V1)
+    {
+      id: 'wonho', nombre: 'compatible con el lightstick de WONHO', prefijos: ['WONHO'],
+      servicio: '8ec91001-f315-4f60-9fb8-838830daea50', caracteristica: '8ec91002-f315-4f60-9fb8-838830daea50',
+      formatos: [{ nombre: '01 00 00 R G B 00 00', bytes: (r, g, b) => [1, 0, 0, r, g, b, 0, 0], apagar: () => [1, 0, 0, 0, 0, 0, 0, 0] }],
+    },
+    // Misma plataforma que P1Harmony (Fanlight): 01 FF 00 R G B WW SS SUM, con blanco (WW) y estrobo (SS) en 0
+    {
+      id: 'the-rose', nombre: 'compatible con el lightstick de The Rose', prefijos: ['THE ROSE'], conRespuesta: true,
+      servicio: '00010203-0405-0607-0809-0a0b0c0d1911', caracteristica: '00010203-0405-0607-0809-0a0b0c0d2b19',
+      formatos: [
+        { nombre: 'Ver. 2, suma desde el 3.er byte', bytes: (r, g, b) => conSuma([1, 0xff, 0, r, g, b, 0, 0], 2) },
+        { nombre: 'Ver. 2, suma desde el 2.º byte', bytes: (r, g, b) => conSuma([1, 0xff, 0, r, g, b, 0, 0], 1) },
+      ],
+    },
   ];
-  const SERVICIOS = MODELOS.map((m) => m.servicio);
+  // Varios modelos comparten servicio: se declara una vez. Si el nombre no calza, gana el primero de la lista
+  // (ATEEZ antes que WONHO, P1Harmony antes que The Rose), que manda los mismos bytes.
+  const SERVICIOS = [...new Set(MODELOS.map((m) => m.servicio))];
 
   const byte = (v) => Math.max(0, Math.min(255, Math.round(v || 0)));
   const hex = (bytes) => bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');

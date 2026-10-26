@@ -117,6 +117,33 @@ test('lightstick: reconoce el modelo por servicio aunque el nombre no calce, y r
   assert.strictEqual(c.estado, 'desconectado');
 });
 
+test('lightstick: WONHO y The Rose se reconocen por su nombre y mandan el formato de su plataforma', async () => {
+  const L = cargarLightstick();
+  const ateez = { '8ec91001-f315-4f60-9fb8-838830daea50': ['8ec91002-f315-4f60-9fb8-838830daea50'] };
+  const fanlight = { '00010203-0405-0607-0809-0a0b0c0d1911': ['00010203-0405-0607-0809-0a0b0c0d2b19'] };
+  const o = L.opcionesBusqueda(false);
+  assert.ok(o.filters.some((f) => f.namePrefix === 'WONHO') && o.filters.some((f) => f.namePrefix === 'THE ROSE'));
+  assert.strictEqual(o.optionalServices.length, 3, 'cada servicio se declara una sola vez');
+
+  const wonho = lightstickFalso({ nombre: 'WONHO-V1', servicios: ateez });
+  const c1 = await conectado(L, wonho);
+  assert.strictEqual(c1.modelo.id, 'wonho');
+  c1.enviar([10, 20, 30]);
+  await esperar(150);
+  assert.deepStrictEqual(wonho.escrituras.at(-1).bytes, [1, 0, 0, 10, 20, 30, 0, 0]);
+
+  const rose = lightstickFalso({ nombre: 'THE ROSE OLS', servicios: fanlight });
+  const c2 = await conectado(L, rose);
+  assert.strictEqual(c2.modelo.id, 'the-rose');
+  c2.enviar([0x10, 0x20, 0x30]);
+  await esperar(150);
+  assert.deepStrictEqual(rose.escrituras.at(-1).bytes, [1, 0xff, 0, 0x10, 0x20, 0x30, 0, 0, 0x60]);
+
+  // Sin nombre conocido, el servicio de ATEEZ sigue reconociéndose como ATEEZ
+  const sinNombre = lightstickFalso({ nombre: 'LS', servicios: ateez });
+  assert.strictEqual((await conectado(L, sinNombre)).modelo.id, 'ateez');
+});
+
 test('lightstick: un dispositivo sin servicio de luz conocido queda como incompatible, con sus servicios para el diagnóstico', async () => {
   const L = cargarLightstick();
   const falso = lightstickFalso({ nombre: 'Audífonos', servicios: { '0000180f-0000-1000-8000-00805f9b34fb': ['00002a19-0000-1000-8000-00805f9b34fb'] } });

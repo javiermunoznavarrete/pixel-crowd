@@ -142,6 +142,8 @@ Un teléfono controla **un** lightstick por Bluetooth (Web Bluetooth): el lights
   | Compatible con ARMY Bomb Ver. 4 (plataforma HYBE) | Pendiente de confirmar con el dispositivo real |
   | Compatible con el lightstick de ATEEZ | Pendiente de confirmar con el dispositivo real |
   | Compatible con el lightstick de P1Harmony | Pendiente de confirmar; tiene cuatro formatos posibles, que se eligen desde el diagnóstico |
+  | Compatible con el lightstick de WONHO (BEATRO, mismo protocolo que ATEEZ) | Pendiente de confirmar con el dispositivo real |
+  | Compatible con el lightstick de The Rose Ver. 2 (plataforma de P1Harmony) | Pendiente de confirmar; dos formatos posibles en el diagnóstico |
 
   Los modelos con protocolo cifrado (Stray Kids V2, MONSTA X V3) quedan fuera.
 - **Seguridad:**
