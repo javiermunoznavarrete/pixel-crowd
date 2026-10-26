@@ -5,6 +5,7 @@
   "fecha": "cuando quieras",
   "recinto": "demo",
   "oculto": true,
+  "lightstick": true,
   "subtitulo": "Evento de demostración con un estadio de prueba",
   "nota": "Evento oculto, siempre disponible en /demo para probar la app.",
   "presets": [

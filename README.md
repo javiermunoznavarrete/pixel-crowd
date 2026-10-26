@@ -128,6 +128,34 @@ Eventos actuales: `babymetal-2026` (BABYMETAL, Santander Arena) y `atarashii-gak
 
 El orden y los BPM son una referencia: hay que ajustarlos en el ensayo y con el setlist real de Santiago. Por seguridad, ni el estrobo ni el pulso superan 3 ciclos por segundo, pida lo que pida el preset.
 
+## Modo lightstick (beta)
+
+Un teléfono controla **un** lightstick por Bluetooth (Web Bluetooth): el lightstick toma el mismo color que el motor ya calcula para la pantalla. Con **«Pantalla oscura»** la pantalla queda en negro mientras el lightstick esté conectado, y la persona ahorra batería. Si el lightstick se desconecta, la pantalla se vuelve a encender sola, y se reintenta la conexión después de 1, 2, 4, 8 y 15 s.
+
+- **Solo se activa** en los eventos con `"lightstick": true` en su `evento.json` (por ahora, solo `demo`). En los demás la página no descarga `public/lightstick.js`.
+- **Navegadores:** Chrome o Edge en Android y escritorio. En iPhone, Safari no tiene Bluetooth web; la página lo explica y sugiere Bluefy.
+- **Cómo se usa:** entrar al show, tocar la pantalla, «Conectar mi lightstick». Si el lightstick estaba vinculado a otra app o teléfono, hay que desvincularlo antes.
+- **Modelos (sin cifrado):**
+
+  | Modelo | Estado |
+  |---|---|
+  | Compatible con ARMY Bomb Ver. 4 (plataforma HYBE) | Pendiente de confirmar con el dispositivo real |
+  | Compatible con el lightstick de ATEEZ | Pendiente de confirmar con el dispositivo real |
+  | Compatible con el lightstick de P1Harmony | Pendiente de confirmar; tiene cuatro formatos posibles, que se eligen desde el diagnóstico |
+
+  Los modelos con protocolo cifrado (Stray Kids V2, MONSTA X V3) quedan fuera.
+- **Seguridad:**
+  - Siempre se usa el modo de color fijo del lightstick, nunca su estrobo propio, así que se respeta el límite de 3 destellos por segundo del motor.
+  - Se escribe solo en la característica de color de cada modelo, nunca en otros servicios, como el de actualización de firmware.
+  - Como máximo se envían ~14 cambios por segundo, con una cola donde el último color gana.
+- **Diagnóstico para pruebas:** en el panel del show hay:
+  - botones rojo, verde, azul y apagar, que mantienen el color 3 s;
+  - un selector de formato de bytes;
+  - un informe con modelo, escrituras, errores, últimos bytes y servicios encontrados, y el botón «Copiar informe».
+
+  Si el dispositivo no es reconocido, el informe lista sus servicios para agregar el modelo después.
+- Implementación propia; de la documentación de la comunidad solo se usan identificadores y formatos de bytes. Pruebas con un lightstick simulado: `test/lightstick.test.js`.
+
 ## Recintos
 
 Cada evento indica qué recinto usa (`"recinto"` en su `evento.json`) y varios eventos pueden compartir uno.
