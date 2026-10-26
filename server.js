@@ -111,7 +111,7 @@ function cargarRecinto(nombre) {
 // ---------- Eventos ----------
 const SLUG = /^[a-z0-9][a-z0-9-]{1,60}$/;
 const PAGINAS = { operador: 'operador.html', simulador: 'simulador.html', conectar: 'conectar.html' };
-const RESERVADOS = new Set(['api', 'vendor', 'admin', 'og', ...Object.keys(PAGINAS)]);
+const RESERVADOS = new Set(['api', 'vendor', 'admin', 'og', 'legal', ...Object.keys(PAGINAS)]);
 const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: ZONA_HORARIA }); // AAAA-MM-DD en Chile
 
 function cargarEventos() {
@@ -802,6 +802,12 @@ function metadatos(archivo, ev) {
       // Sin marcado de evento (MusicEvent): Google lo toma como la página del concierto y lo mostraría como evento
       // oficial; esta página es la acción de fans, no el concierto
       isPartOf: { '@id': BASE_PUBLICA + '#sitio' }, about: { '@id': BASE_PUBLICA + '#app' } }];
+  } else if (archivo === 'legal.html') {
+    url = BASE_PUBLICA + 'legal';
+    titulo = 'Aviso legal, marcas y privacidad | Pixel Crowd';
+    descripcion = 'Pixel Crowd es una acción de fans, no oficial. Cómo usamos los nombres y marcas, el modo lightstick, cómo pedir que retiremos contenido y qué datos usamos.';
+    imagen = 'og/pixel-crowd.png';
+    grafo = [sitio, autor, { '@type': 'WebPage', '@id': url, url, name: titulo, description: descripcion, inLanguage: 'es-CL', isPartOf: { '@id': BASE_PUBLICA + '#sitio' } }];
   } else {
     const proximos = eventosVisibles().filter((e) => situacion(e.def) !== 'terminado').map((e) => e.def.titulo);
     url = BASE_PUBLICA;
@@ -853,6 +859,7 @@ function listaEnHtml(html) {
 function sitemap(req, res) {
   const fecha = (f) => { try { return fs.statSync(f).mtime.toISOString().slice(0, 10); } catch { return null; } };
   const urls = [{ loc: BASE_PUBLICA, mod: fecha(path.join(PUBLIC, 'eventos.html')) },
+    { loc: BASE_PUBLICA + 'legal', mod: fecha(path.join(PUBLIC, 'legal.html')) },
     ...eventosVisibles().map((e) => ({ loc: BASE_PUBLICA + e.slug, mod: fecha(path.join(DIR_EVENTOS, e.slug, 'evento.json')) }))];
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     + urls.map((u) => `  <url><loc>${u.loc}</loc>${u.mod ? `<lastmod>${u.mod}</lastmod>` : ''}</url>`).join('\n') + '\n</urlset>\n';
@@ -966,6 +973,7 @@ const servidor = http.createServer((req, res) => {
   // Páginas
   if (p === '/') return estatico(req, res, 'eventos.html');
   if (p === '/sitemap.xml') return sitemap(req, res);
+  if (p === '/legal') return estatico(req, res, 'legal.html');
   // Entrada del administrador: se ingresa la clave una vez y se elige el evento (antes llevaba al "por defecto")
   if (p === '/admin' || p === '/operador') return estatico(req, res, 'admin.html');
   // Direcciones de antes de los multieventos: /operador, /simulador, /conectar → al evento por defecto

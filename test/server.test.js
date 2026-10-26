@@ -195,6 +195,18 @@ test('SEO: la portada trae los enlaces a los shows en el HTML (sin JavaScript) y
   const xml = await (await fetch(BASE + '/sitemap.xml')).text();
   assert.ok(xml.includes('<loc>https://ejemplo.cl/</loc>') && xml.includes('<loc>https://ejemplo.cl/prueba-a</loc>'));
   assert.ok(!xml.includes('prueba-vieja'));
+  assert.ok(xml.includes('<loc>https://ejemplo.cl/legal</loc>'));
+});
+
+test('Aviso legal: /legal responde con su propio título, está enlazado y explica cómo pedir un retiro', async () => {
+  const r = await fetch(BASE + '/legal');
+  assert.strictEqual(r.status, 200);
+  const html = await r.text();
+  assert.ok(html.includes('<title>Aviso legal, marcas y privacidad | Pixel Crowd</title>'));
+  assert.ok(html.includes('<link rel="canonical" href="https://ejemplo.cl/legal">'));
+  assert.ok(html.includes('Solicitudes de retiro') && html.includes('sin cifrado'));
+  assert.ok(!html.includes('noindex'));
+  assert.ok((await (await fetch(BASE + '/')).text()).includes('href="/legal"'));
 });
 
 test('SEO: paneles, admin, API y shows ocultos no se indexan', async () => {

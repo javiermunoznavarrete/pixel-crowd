@@ -1,0 +1,90 @@
+<!doctype html>
+<!-- Pixel Crowd — Copyright (c) 2026 Javier Julian Muñoz Navarrete · SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 (ver LICENSE.md) -->
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15122A">
+<!--seo-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --tinta: #15122A; --bruma: #262046; --brillo: #FFF1E0; --zorro: #FF2E4D; --lila: #A39DCC; --borde: #3A3366;
+    --display: "Unbounded", system-ui, sans-serif;
+    --cuerpo: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--tinta); color: var(--brillo); font: 17px/1.55 var(--cuerpo); }
+  main { max-width: 620px; margin: 0 auto; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); }
+  h1, h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(28px, 7.5vw, 38px); line-height: 1.1; margin: 28px 0 10px; }
+  h2 { font-size: 20px; line-height: 1.25; margin: 36px 0 10px; }
+  p, li { color: var(--brillo); }
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--brillo); outline-offset: 3px; border-radius: 6px; }
+  .marca { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 17px; text-decoration: none; }
+  .marca .logo { width: 22px; height: 22px; }
+  .actualizado { color: var(--lila); margin: 0; }
+  .retiro { margin-top: 14px; padding: 16px 18px; border-radius: 16px; background: var(--bruma); }
+  .retiro p:last-child { margin: 0; }
+  .pie { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--borde); color: var(--lila); font-size: 14px; }
+  .pie p { color: var(--lila); margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="marca" href="/"><svg class="logo" viewBox="0 0 11 11" aria-hidden="true"><rect x="0" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="0" width="3" height="3" fill="#FFF1E0"/><rect x="8" y="0" width="3" height="3" fill="#FF2E4D"/><rect x="0" y="4" width="3" height="3" fill="#FFF1E0"/><rect x="4" y="4" width="3" height="3" fill="#FF2E4D"/><rect x="8" y="4" width="3" height="3" fill="#3A3366"/><rect x="0" y="8" width="3" height="3" fill="#FF2E4D"/><rect x="4" y="8" width="3" height="3" fill="#3A3366"/><rect x="8" y="8" width="3" height="3" fill="#FFF1E0"/></svg>pixel crowd</a>
+
+  <h1>Aviso legal, marcas y privacidad</h1>
+  <p class="actualizado">Actualizado el 26 de octubre de 2026.</p>
+
+  <h2 id="que-es">Qué es Pixel Crowd</h2>
+  <p>Pixel Crowd es una acción de fans: coordina las pantallas de los teléfonos del público para formar luces en un concierto. Es un proyecto de Javier Julian Muñoz Navarrete, de Santiago de Chile, de uso no comercial y gratuito para el público.</p>
+  <p>No es oficial. No está asociado, patrocinado ni aprobado por los artistas, sus sellos o agencias, los recintos, las productoras, las ticketeras ni los fabricantes de lightsticks.</p>
+
+  <h2 id="marcas">Nombres y marcas</h2>
+  <p>Los nombres de artistas, giras, recintos y productos pertenecen a sus dueños. Aquí se usan solo para indicar a qué show corresponde cada página o con qué lightstick es compatible el modo lightstick. No usamos sus logos, fotos ni música.</p>
+
+  <h2 id="lightsticks">Modo lightstick (beta)</h2>
+  <p>En algunos eventos de prueba, tu teléfono puede enviar por Bluetooth el color del show a tu propio lightstick. Para eso:</p>
+  <ul>
+    <li>Usamos solo información técnica pública sobre cómo recibe colores cada modelo, con una implementación propia.</li>
+    <li>Solo integramos modelos que reciben los colores sin cifrado. No eludimos cifrados, claves ni otras protecciones técnicas, y no usamos claves extraídas de las apps oficiales.</li>
+    <li>Solo enviamos colores. No tocamos el firmware ni otras funciones del dispositivo.</li>
+    <li>No interferimos con el modo concierto que controla la producción de un show oficial: el modo lightstick es para cuando el lightstick está en modo app.</li>
+  </ul>
+  <p>Es una función beta y la usas bajo tu propia responsabilidad.</p>
+
+  <h2 id="retiro">Solicitudes de retiro</h2>
+  <div class="retiro">
+    <p>Si representas a un artista, sello, agencia, recinto, fabricante u otro titular de derechos y quieres que quitemos la integración con tu producto, tu nombre o cualquier contenido, escríbenos a <a href="mailto:javier_munoz_navarrete@hotmail.com?subject=Solicitud%20de%20retiro%20-%20Pixel%20Crowd">javier_munoz_navarrete@hotmail.com</a>.</p>
+    <p>Indica qué contenido o integración es y a quién representas. Lo retiramos sin costo y sin discusión, lo antes posible.</p>
+  </div>
+
+  <h2 id="privacidad">Privacidad</h2>
+  <ul>
+    <li>No pedimos nombre, correo ni número de teléfono, y no hay registro.</li>
+    <li>Usamos el sector y el asiento que eliges para calcular tu color y para mostrar al operador cuántos teléfonos hay en cada sector. El servidor no lo asocia a tu persona: tu teléfono se identifica con un código al azar. Tu teléfono además lo recuerda para la próxima vez.</li>
+    <li>Si anotas el número de tu silla (es opcional), se guarda de forma anónima para mejorar el mapa del recinto.</li>
+    <li>Contamos cuántos teléfonos hay conectados durante un show, sin datos personales.</li>
+    <li>Usamos Google Analytics solo si aceptas las estadísticas. Si no, no se usan cookies de medición.</li>
+    <li>La conexión con tu lightstick es directa entre tu teléfono y el dispositivo. Si aceptaste las estadísticas, solo registramos que se conectó uno y de qué modelo.</li>
+  </ul>
+
+  <h2 id="fotosensibilidad">Luces intermitentes</h2>
+  <p>Los destellos nunca superan 3 por segundo. Aun así, si eres sensible a las luces intermitentes, mejor no lo uses o evita los momentos de destellos.</p>
+
+  <h2 id="codigo">Código y licencia</h2>
+  <p>El código es público y tiene la licencia PolyForm Noncommercial: se puede usar sin fines comerciales. Para usos comerciales o contratar el servicio, escribe a <a href="mailto:javier_munoz_navarrete@hotmail.com">javier_munoz_navarrete@hotmail.com</a>.</p>
+
+  <footer class="pie">
+    <p><a href="/">Volver a Pixel Crowd</a> · <a href="https://github.com/javiermunoznavarrete/pixel-crowd" target="_blank" rel="noopener">Ver el código</a></p>
+  </footer>
+</main>
+</body>
+</html>
