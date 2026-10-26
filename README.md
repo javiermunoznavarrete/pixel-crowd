@@ -95,7 +95,7 @@ Cada evento es una carpeta `data/eventos/<evento>/` con un `evento.json`. Cada u
 
 ```json
 {
-  "titulo": "BABYMETAL", "lugar": "Movistar Arena",
+  "titulo": "BABYMETAL", "lugar": "Santander Arena", "lugarAnterior": "Movistar Arena",
   "fecha": "jueves 3 de diciembre", "fechaISO": "2026-12-03",
   "recinto": "movistar-arena",
   "presets": [ { "nombre": "…", "asignaciones": [ { "zonas": "todas", "capa": { "efecto": "bandera" } } ] } ]
@@ -117,9 +117,9 @@ Cada evento es una carpeta `data/eventos/<evento>/` con un `evento.json`. Cada u
 
 - **Reintentos:** cada envío del panel lleva un id. Si la red del operador falla, el panel reintenta hasta 4 veces con el mismo id y el servidor no lo aplica dos veces. Se puede tener un segundo operador de respaldo (misma clave) en otra parte del recinto.
 
-Eventos actuales: `babymetal-2026` (BABYMETAL, Movistar Arena) y `atarashii-gakko-2026` (ATARASHII GAKKO!, Teatro Caupolicán), ambos el jueves 3 de diciembre de 2026, más `demo` (oculto, con el estadio de prueba).
+Eventos actuales: `babymetal-2026` (BABYMETAL, Santander Arena) y `atarashii-gakko-2026` (ATARASHII GAKKO!, Teatro Caupolicán), ambos el jueves 3 de diciembre de 2026, más `demo` (oculto, con el estadio de prueba).
 
-**BABYMETAL · 3 dic 2026, Movistar Arena** (`data/eventos/babymetal-2026/evento.json`): presets en el orden del setlist de la gira 2026, con los colores de la banda (rojo, negro y blanco):
+**BABYMETAL · 3 dic 2026, Santander Arena** (`data/eventos/babymetal-2026/evento.json`): presets en el orden del setlist de la gira 2026, con los colores de la banda (rojo, negro y blanco):
 - **Bandera de Chile** (destacada): **una sola bandera gigante con todo el público**, vista desde el escenario. Cada persona se proyecta según cómo la ve la banda (ángulo horizontal y altura estimada por nivel y fila) y la bandera se reparte por cantidad de gente: la mitad que se ve más arriba forma la franja blanca y el cantón, y la de abajo la roja. El simulador tiene una "Vista desde el escenario" para revisarla.
 - **Banderas por sector**: una bandera en cada galería (vista desde la cancha) y otra en la cancha.
 - **Tela roja BABYMETAL**: efecto "Tela al viento", una gran tela de un solo color que flamea solo con tonos del mismo color (oscuro en los valles, pleno en las crestas y un leve brillo como satín). En la pestaña General está "Tela al viento (color elegido)", que usa el color seleccionado en el panel.
@@ -132,7 +132,7 @@ El orden y los BPM son una referencia: hay que ajustarlos en el ensayo y con el 
 
 Cada evento indica qué recinto usa (`"recinto"` en su `evento.json`) y varios eventos pueden compartir uno.
 
-**Los mapas de recintos reales (Movistar Arena, Teatro Caupolicán…) no están en este repositorio:** viven en un repositorio privado, porque obtenerlos cuesta trabajo. Aquí solo está `data/recintos/demo`, un estadio de ejemplo (3 galerías, 3.240 asientos) que usan los tests y el evento de prueba `/demo`.
+**Los mapas de recintos reales (Santander Arena, Teatro Caupolicán…) no están en este repositorio:** viven en un repositorio privado, porque obtenerlos cuesta trabajo. Aquí solo está `data/recintos/demo`, un estadio de ejemplo (3 galerías, 3.240 asientos) que usan los tests y el evento de prueba `/demo`.
 
 El servidor busca los recintos, en orden, en:
 1. `RECINTOS_DIR` (una o varias carpetas, separadas por `;` en Windows o `:` en Linux; en Railway, `/data/recintos` del volumen),
@@ -210,7 +210,7 @@ node tools/carga.js --url http://localhost:3000 --evento demo --telefonos 10000 
 
 Opciones: `--modo poll` (teléfonos en modo consultas), `--zona`, `--escenas`, `--reloj-s`, `--muestras`, `--muestras-luego`, `--espera-inicial-ms`. Un solo PC con Windows llega a unas 13.000 conexiones. Contra producción, úsalo solo a propósito: cada teléfono simulado es una conexión real.
 
-Resultados en el recinto del Movistar Arena (32 zonas), 10.000 teléfonos, servidor local, antes y después de los cambios de robustez:
+Resultados en el recinto del Santander Arena (32 zonas), 10.000 teléfonos, servidor local, antes y después de los cambios de robustez:
 
 | | Antes | Después |
 |---|---|---|

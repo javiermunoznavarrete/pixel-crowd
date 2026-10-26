@@ -1,11 +1,12 @@
 {
   "titulo": "BABYMETAL",
   "pestana": "BABYMETAL · 3 dic 🦊",
-  "lugar": "Movistar Arena",
+  "lugar": "Santander Arena",
+  "lugarAnterior": "Movistar Arena",
   "fecha": "jueves 3 de diciembre",
   "fechaISO": "2026-12-03",
   "recinto": "movistar-arena",
-  "subtitulo": "Jueves 3 dic 2026 · Movistar Arena",
+  "subtitulo": "Jueves 3 dic 2026 · Santander Arena",
   "nota": "Orden según el setlist de la gira 2026. Colores de la banda: rojo, negro y blanco. BPM aproximados.",
   "fuente": "Orden basado en el setlist de la gira mundial 2026 (fechas de octubre en setlist.fm); el setlist de Santiago puede variar. BPM aproximados: ajustar en el ensayo. zonas: todas | numeradas | generales | [IDs].",
   "presets": [

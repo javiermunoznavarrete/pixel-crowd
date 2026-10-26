@@ -782,14 +782,23 @@ function metadatos(archivo, ev) {
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'CLP' }, creator: { '@id': BASE_PUBLICA + '#autor' } };
   const autor = { '@type': 'Person', '@id': BASE_PUBLICA + '#autor', name: AUTOR, email: 'mailto:javier_munoz_navarrete@hotmail.com' };
   const sitio = { '@type': 'WebSite', '@id': BASE_PUBLICA + '#sitio', name: 'Pixel Crowd', url: BASE_PUBLICA, inLanguage: 'es-CL', publisher: { '@id': BASE_PUBLICA + '#autor' } };
-  let titulo, descripcion, url, imagen, grafo;
+  let titulo, descripcion, url, imagen, grafo, descripcionBuscadores = null, palabrasClave = null;
   if (ev) {
     const d = ev.def;
     url = BASE_PUBLICA + ev.slug;
     titulo = `${d.titulo}${d.lugar ? ' en el ' + d.lugar : ''}: enciende tu teléfono | Pixel Crowd`;
-    descripcion = `Acción de fans para ${d.titulo}${d.fecha ? ', ' + d.fecha : ''}${d.lugar ? ' en el ' + d.lugar : ''}: elige tu sector y tu teléfono se suma a las luces del público, junto a miles de pantallas. Sin app ni pulseras.`;
+    const desc = (lugar) => `Acción de fans para ${d.titulo}${d.fecha ? ', ' + d.fecha : ''}${lugar ? ' en el ' + lugar : ''}: elige tu sector y tu teléfono se suma a las luces del público, junto a miles de pantallas. Sin app ni pulseras.`;
+    descripcion = desc(d.lugar);
+    // Si el recinto cambió de nombre (Movistar Arena → Santander Arena), el anterior va solo en lo que leen los
+    // buscadores (meta descripción, palabras clave, JSON-LD): mucha gente sigue buscándolo. En la página y en las
+    // vistas previas al compartir aparece solo el nombre actual.
+    if (d.lugarAnterior) {
+      descripcionBuscadores = desc(`${d.lugar} (ex ${d.lugarAnterior})`);
+      palabrasClave = [d.titulo, d.lugar, d.lugarAnterior, 'Pixel Crowd', 'luces con el teléfono', 'acción de fans', 'Santiago'];
+    }
     imagen = fs.existsSync(path.join(PUBLIC, 'og', ev.slug + '.png')) ? `og/${ev.slug}.png` : 'og/pixel-crowd.png';
-    grafo = [sitio, app, autor, { '@type': 'WebPage', '@id': url, url, name: titulo, description: descripcion, inLanguage: 'es-CL',
+    grafo = [sitio, app, autor, { '@type': 'WebPage', '@id': url, url, name: titulo, description: descripcionBuscadores || descripcion, inLanguage: 'es-CL',
+      ...(palabrasClave ? { keywords: palabrasClave.join(', ') } : {}),
       // Sin marcado de evento (MusicEvent): Google lo toma como la página del concierto y lo mostraría como evento
       // oficial; esta página es la acción de fans, no el concierto
       isPartOf: { '@id': BASE_PUBLICA + '#sitio' }, about: { '@id': BASE_PUBLICA + '#app' } }];
@@ -806,7 +815,8 @@ function metadatos(archivo, ev) {
   const ld = JSON.stringify({ '@context': 'https://schema.org', '@graph': grafo }).replace(/</g, '\\u003c');
   return [
     `<title>${escaparHtml(titulo)}</title>`,
-    `<meta name="description" content="${escaparHtml(descripcion)}">`,
+    `<meta name="description" content="${escaparHtml(descripcionBuscadores || descripcion)}">`,
+    ...(palabrasClave ? [`<meta name="keywords" content="${escaparHtml(palabrasClave.join(', '))}">`] : []),
     `<link rel="canonical" href="${url}">`,
     ...(ev && !indexable(ev) ? ['<meta name="robots" content="noindex">'] : []),
     '<meta property="og:type" content="website">', '<meta property="og:site_name" content="Pixel Crowd">', '<meta property="og:locale" content="es_CL">',
