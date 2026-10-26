@@ -780,7 +780,7 @@ function metadatos(archivo, ev) {
     applicationCategory: 'EntertainmentApplication', operatingSystem: 'Web (navegador del teléfono)', inLanguage: 'es-CL',
     description: 'Convierte los teléfonos del público en luces coordinadas: cada pantalla es un píxel y juntas forman olas, colores y banderas que se ven desde el escenario. Sin app ni pulseras.',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'CLP' }, creator: { '@id': BASE_PUBLICA + '#autor' } };
-  const autor = { '@type': 'Person', '@id': BASE_PUBLICA + '#autor', name: AUTOR, email: 'mailto:javier_munoz_navarrete@hotmail.com' };
+  const autor = { '@type': 'Person', '@id': BASE_PUBLICA + '#autor', name: AUTOR, email: 'mailto:contacto@pixelcrowd.cl' };
   const sitio = { '@type': 'WebSite', '@id': BASE_PUBLICA + '#sitio', name: 'Pixel Crowd', url: BASE_PUBLICA, inLanguage: 'es-CL', publisher: { '@id': BASE_PUBLICA + '#autor' } };
   let titulo, descripcion, url, imagen, grafo, descripcionBuscadores = null, palabrasClave = null;
   if (ev) {

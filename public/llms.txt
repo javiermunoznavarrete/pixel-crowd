@@ -24,4 +24,4 @@ Pixel Crowd no está asociado a las bandas, a los recintos, a la productora ni a
 
 - [Lista de shows](https://pixelcrowd.cl/)
 - [Código fuente (licencia PolyForm Noncommercial)](https://github.com/javiermunoznavarrete/pixel-crowd)
-- Contacto para licencias comerciales o contratar el servicio: javier_munoz_navarrete@hotmail.com
+- Contacto para licencias comerciales o contratar el servicio: contacto@pixelcrowd.cl

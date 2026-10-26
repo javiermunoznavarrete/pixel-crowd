@@ -262,6 +262,6 @@ Pixel Crowd se distribuye bajo la **[PolyForm Noncommercial License 1.0.0](LICEN
 - **No se permite** el uso comercial (por ejemplo, venderlo como servicio, cobrar por montar shows con él o integrarlo en un producto comercial) sin una licencia aparte del titular.
 - Quien lo redistribuya debe incluir estos términos y la línea `Required Notice:` de `LICENSE.md`.
 
-**Licencias comerciales y contratación del servicio** (productoras, bandas, eventos con fines de lucro): escribe a **[javier_munoz_navarrete@hotmail.com](mailto:javier_munoz_navarrete@hotmail.com)**.
+**Licencias comerciales y contratación del servicio** (productoras, bandas, eventos con fines de lucro): escribe a **[contacto@pixelcrowd.cl](mailto:contacto@pixelcrowd.cl)**.
 
 Las librerías de terceros en `public/vendor/` conservan sus propias licencias MIT: NoSleep.js (Rich Tibbett) y qrcode-generator (Kazuhiko Arase).

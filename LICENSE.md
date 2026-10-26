@@ -1,5 +1,5 @@
 Required Notice: Copyright (c) 2026 Javier Julian Muñoz Navarrete
-Required Notice: Licencias comerciales y contratación del servicio: javier_munoz_navarrete@hotmail.com
+Required Notice: Licencias comerciales y contratación del servicio: contacto@pixelcrowd.cl
 
 # PolyForm Noncommercial License 1.0.0
 
